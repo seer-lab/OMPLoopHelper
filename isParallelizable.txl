@@ -20,10 +20,10 @@ redefine block_item
     | [comment] [NL]
 end redefine
 
-% comment_for definition 
+% define comment_for for easier parsing of for loops preceded by annotation
 define comment_for
     [comment] [NL]
-    [for_statement]
+    [attr srclinenumber] [for_statement]
 end redefine
 
 redefine for_statement
@@ -50,11 +50,13 @@ end function
 
 % check if for loop can be parallelized
 rule checkForParallel
-    replace $ [for_statement]
+    replace $ [comment_for]
+        cf [comment_for]
+    deconstruct cf
         '//@omp-analysis=true
-        f [for_statement]
-    construct message1 [for_statement]
-        f [message ""] [message "Found Loop (step 1)"] [message ""] [print]
+        ln [srclinenumber] f [for_statement]
+    construct message1 [stringlit]
+        _ [+ "\033[1;31m Found loop on line \033[0m\n"] [quote ln] [+ " (step 1): "] [message ""] [print] [message ""] [message cf]
     deconstruct f
         'for '( nnd [opt non_null_declaration] el1 [opt expression_list] '; el2 [opt expression_list] soel [opt semi_opt_expression_list] ') ss [sub_statement]
     deconstruct ss 
