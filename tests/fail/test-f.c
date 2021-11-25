@@ -13,7 +13,7 @@ int main(){
     
     //@omp-analysis=true
     for (int i = 0; i < sizeof(a)/ sizeof(int); i++) {
-        sum += a[i-1];
+        sum += sum2 + a[i-1];
         sum2 += a[i];
     }
 

@@ -10,14 +10,20 @@ include "c.grm"
 % 1. have c code, with at least one for loop
 % 2. before the for loop you want to test, add this comment: //@omp-analysis=true
 % 3. run: txl isParallelizable.txl [c code filepath] -comment
-
+%       - without full program output: txl isParallelizable.txl [c code filepath] -comment -o ../output.txt
 
 %_____________ redefine necessary patterns _____________
 
-% redefine  block_item to include comments
+% redefine block_item to include comments
 redefine block_item
     ...
     | [comment] [NL]
+    | [comment]
+end redefine
+redefine function_definition_or_declaration
+    ...
+    | [comment] [NL]
+    | [comment]
 end redefine
 
 % define comment_for for easier parsing of for loops preceded by annotation
@@ -56,7 +62,7 @@ rule checkForParallel
         '//@omp-analysis=true
         ln [srclinenumber] f [for_statement]
     construct message1 [stringlit]
-        _ [+ "\033[1;31m Found loop on line \033[0m\n"] [quote ln] [+ " (step 1): "] [message ""] [print] [message ""] [message cf]
+        _ [+ "Found loop on line "] [quote ln] [+ " (step 1): "] [message ""] [print] [message ""] [message cf]
     deconstruct f
         'for '( nnd [opt non_null_declaration] el1 [opt expression_list] '; el2 [opt expression_list] soel [opt semi_opt_expression_list] ') ss [sub_statement]
     deconstruct ss 
