@@ -1,4 +1,5 @@
 include "c.grm"
+% include "c-comments.grm" %add
 
 % isParallelizable
 % This program checks 3 steps to determine if a for loop is parallelizable
@@ -10,9 +11,9 @@ include "c.grm"
 % 1. have c code, with at least one for loop
 % 2. before the for loop you want to test, add this comment: //@omp-analysis=true
 % 3. run: txl isParallelizable.txl [c code filepath] -comment
-%       - without full program output: txl isParallelizable.txl [c code filepath] -comment -o ../output.txt
+%       - without full program output: txl isParallelizable.txl [c code filepath] -comment -o /dev/null
 
-%_____________ redefine necessary patterns _____________
+%_____________ redefine/define necessary patterns _____________
 
 % redefine block_item to include comments
 redefine block_item
@@ -80,7 +81,7 @@ rule checkForParallel
     construct message3 [repeat block_item]
         b [storeAssignedToElements] [message " - stored assigned-to elements"]
     construct message4 [repeat any]
-        _ [message " - iterating through referenced elements: checking for assigned-to elements"]
+        _ [message " - iterating through referenced elements: checking for assigned-to elements"] [message ""]
     where not
         b [isReferencedElementAssignedTo]
     construct message5 [repeat any]
@@ -129,10 +130,10 @@ rule isAssignedTo_AssignmentReference
     where
         aae [elementIsAssignedTo]
     construct message [stringlit]
-        _ [+ "    on line: "] [quote ae] [print] [message ""]
+        _ [+ "    on line: "] [quote ae] [print] [message ""] [message ""]
 end rule
 
-% check if scope has a unary_expression 
+% check if element is in list of unary expressions
 rule elementIsAssignedTo
     import assignedToElements [repeat unary_expression]
     match $ [unary_expression]
@@ -141,14 +142,14 @@ rule elementIsAssignedTo
         assignedToElements [isInRepeat e]
 end rule
 
-% check if element is in list of unary expressions
 rule isInRepeat e [unary_expression]
-    match [unary_expression]
+    skipping [unary_expression] % so expressions like a[i] don't match i
+    match * [unary_expression]
         e1 [unary_expression]
     where
         e1 [= e]
     construct message [stringlit]
-        _ [message ""] [+ "Failure: this element is written to and read on different iterations, making the loop un-parallelizable: "] [quote e1] [print]
+        _ [+ "Failure: this element is written to and read on different iterations, making the loop un-parallelizable: "] [quote e1] [print]
 end rule
     
 

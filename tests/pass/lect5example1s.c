@@ -35,12 +35,13 @@ int main() {
       //calculate height
       x = (i+0.5)*step;
       sum[thread_id] = sum[thread_id] + 4/(1.0+x*x); //sum F(x)
+      sum[thread_id];
     }
   }
   pi=0.0;
   for (int i=0; i < thread_count; i++) {
     pi += step * sum[i];
-
   }
+  
   printf("pi = %f", pi);
 }
