@@ -71,7 +71,7 @@ void compareSeq1Seq2(Seqs_Details* seqs_d,char* seq1, char* seq2,int indexOfSeq2
 	{
 		char * mutant;
 		//##########################OpenMP###########################################
-		#pragma omp parallel for
+		//#pragma omp parallel for
         //@omp-analysis=true
 		for(int i=0 ;i<strlen(seq2)+1;i++)//all versions of mutants (O(delta*sq2*seq2))
 		{
@@ -94,7 +94,7 @@ char* createMutant(char* seq,int index)//O(seq2)
 	char ch = '-';
 	int i;
 	//##########################OpenMP###########################################
-	#pragma omp parallel for
+	//#pragma omp parallel for
     //@omp-analysis=true
 	for(i=0;i<strlen(seq)+1;i++)
 	{
@@ -119,7 +119,7 @@ void compare_Seqs_With_Offset(Seqs_Details* seqs_d,char* seq1,char* seq2,int del
 	{
 		seq3 = (char*)calloc(lenght,sizeof(char));	
 		//##########################OpenMP###########################################
-		#pragma omp parallel for//parallel computing
+		//#pragma omp parallel for//parallel computing
         //@omp-analysis=true
 		for(j=0;j<lenght;j++)
 		{
@@ -187,7 +187,7 @@ void sumWeights(Seqs_Details* seqs_d,char* seq3, int size,int newOffset,int inde
 
 	double newMax = 0;
 	//##########################OpenMP###########################################
-	#pragma omp parallel for
+	//#pragma omp parallel for
     //@omp-analysis=true
 	for(int i = 0;i<size;i++)//Pass all over the seq3 and summarize the number of time that stars/colons/points/space apear
 	{

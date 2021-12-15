@@ -6,8 +6,7 @@ Fibonacci series: Any number in the series is obtained by adding the previous tw
 
 #include <stdio.h>
 #include <stdlib.h>
-int main()
-{
+int main(){
     //array fib stores numbers of fibonacci series
     int i, fib[10];
     // initialized first element to 0
@@ -16,16 +15,14 @@ int main()
     fib[1] = 1;
     //loop to generate ten elements
     //@omp-analysis=true
-    for (i = 2; i < 10; i++)
-    {
+    for (i = 2; i < 10; i++){
         //i'th element of series is equal to the sum of i-1'th element and i-2'th element.
         fib[i] = fib[i - 1] + fib[i - 2];
     }
     printf("\n The fibonacci series is as follows : ");
     //print all numbers in the series
     
-    for (i = 0; i < 10; i++)
-    {
+    for (i = 0; i < 10; i++){
         printf("%3d", fib[i]);
     }
     printf("\n");

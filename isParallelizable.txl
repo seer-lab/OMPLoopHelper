@@ -1,5 +1,5 @@
-include "c.grm"
-% include "c-comments.grm" %add
+include "C18/c.grm"
+include "C18/c-comments.grm"
 
 % isParallelizable
 % This program checks 3 steps to determine if a for loop is parallelizable
@@ -13,19 +13,20 @@ include "c.grm"
 % 3. run: txl isParallelizable.txl [c code filepath] -comment
 %       - without full program output: txl isParallelizable.txl [c code filepath] -comment -o /dev/null
 
+
 %_____________ redefine/define necessary patterns _____________
 
 % redefine block_item to include comments
-redefine block_item
-    ...
-    | [comment] [NL]
-    | [comment]
-end redefine
-redefine function_definition_or_declaration
-    ...
-    | [comment] [NL]
-    | [comment]
-end redefine
+%redefine block_item
+%    ...
+%    | [comment] [NL]
+%    | [comment]
+%end redefine
+%redefine function_definition_or_declaration
+%    ...
+%    | [comment] [NL]
+%    | [comment]
+%end redefine
 
 % define comment_for for easier parsing of for loops preceded by annotation
 define comment_for
@@ -89,8 +90,7 @@ rule checkForParallel
     %construct nf [for_statement]
     %    'for '( nnd el1 '; el2 soel ') '{ b '}
     by
-        '//@omp-analysis=true
-        f [message ""] [message "Success. This loop can be parallelized"] [message ""] 
+        cf [message ""] [message "Success. This loop can be parallelized"]
 end rule
 
 

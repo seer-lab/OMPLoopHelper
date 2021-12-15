@@ -15,7 +15,7 @@ int main ()
     step = 1.0/(double) num_steps;
     
 
-    #pragma omp parallel for reduction(+: sum)
+    //#pragma omp parallel for reduction(+: sum)
     //@omp-analysis=true
     for (int i = 0; i < num_steps; i += 1) {
         printf("thread:%d\n", omp_get_thread_num());

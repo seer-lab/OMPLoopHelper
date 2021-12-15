@@ -51,14 +51,14 @@
 #define TRUE_ALPHA 2.00
 
 // Some MACRO functions
- #define max(a,b) \
+/* #define max(a,b) \
    ({ __typeof__ (a) _a = (a); \
        __typeof__ (b) _b = (b); \
      _a > _b ? _a : _b; })
 #define min(a,b) \
     ({ typeof (a) _a = (a);    \
 	typeof (b) _b = (b);   \
-        _a < _b ? _a : _b; })   
+        _a < _b ? _a : _b; })   */
 
 
 int generate_offset(int min, int max)
@@ -77,35 +77,11 @@ int main(int argc, char *argv[])
 {	
 
 	// Print basic parameters of the problem.
-	int size_of_DATA = IMAGE_SIZE;
-	// printf("Image size: %d\n", size_of_DATA);
-	printf("NITER: %d\n", (NITER-NITER_BURNIN));
-	printf("Block width: %d\n", BLOCK);
-	printf("MARGIN 1/2: %d/%d\n", MARGIN1, MARGIN2);
-	printf("Data width: %d\n", DATA_WIDTH);
-	printf("Number of blocks per dim: %d\n", NUM_BLOCKS_PER_DIM);
-	printf("Number of blocks processed per step: %d\n", NUM_BLOCKS_TOTAL);
-	printf("MAX_STARS: %d\n", MAX_STARS);	
-	int stack_size = kmp_get_stacksize_s() / 1e06;
-	printf("Stack size being used: %dMB\n", stack_size);	
-	printf("Number of processors available: %d\n", omp_get_num_procs());
-	int max_num_threads = omp_get_max_threads();
-	printf("Number of max threads: %d\n", max_num_threads);
-
-	int i, j; // Initialization and NITER Loop variables	
-
-	// ----- Declare global, shared variables ----- //
-	// Object array. Each object gets AVX_CACHE space or 16 floats.
-	__attribute__((aligned(64))) float OBJS[AVX_CACHE * MAX_STARS];
-	// Array that tells which objects belong which arrays. See below for usage.
-	__attribute__((aligned(64))) int OBJS_IN_BLOCK[MAXCOUNT * max_num_threads * NUM_BLOCKS_TOTAL]; 
-	// Block counter for each thread
-	__attribute__((aligned(64))) int BLOCK_COUNT_THREAD[max_num_threads * NUM_BLOCKS_TOTAL]; 
 
 	// Initialize hashing variables	
-	#pragma omp parallel for simd
+	//#pragma omp parallel for simd
 	//@omp-analysis=true
-	for (i=0; i<MAXCOUNT * max_num_threads * NUM_BLOCKS_TOTAL; i++){
+	for (int i=0; i<MAXCOUNT * max_num_threads * NUM_BLOCKS_TOTAL; i++){
 		OBJS_IN_BLOCK[i] = -1; // Can't set it to zero since 0 is a valid object number.
 	}		
 
@@ -124,7 +100,7 @@ int main(int argc, char *argv[])
 	for (j=0; j<NITER; j++){
 
 		// ----- Initialize object array ----- //
-		#pragma omp parallel for simd
+		//#pragma omp parallel for simd
 		//@omp-analysis=true
 		for (i=0; i< AVX_CACHE * MAX_STARS; i++){
 			OBJS[i] = -1; // Can't set it to zero since 0 is a valid object number.
@@ -160,7 +136,7 @@ int main(int argc, char *argv[])
 		start = omp_get_wtime(); // Timing starts here 		
 
 		// Set the counter to zero
-		#pragma omp parallel for simd
+		//#pragma omp parallel for simd
 		//@omp-analysis=true
 		for (i=0; i < max_num_threads * NUM_BLOCKS_TOTAL; i++){
 			BLOCK_COUNT_THREAD[i] = 0;
