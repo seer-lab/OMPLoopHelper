@@ -1,4 +1,10 @@
 import subprocess
+import sys
+
+# if user gives "-v" as argument, show test output
+verbose = False
+if(len(sys.argv) > 1 and sys.argv[1] == "-v"):
+    verbose = True
 
 failDir = 'tests/fail/'
 passDir = 'tests/pass/'
@@ -20,7 +26,6 @@ passFiles = str(result.stdout).split('b\'')[1].split('\\n')[:-1]
 failTests = []
 passTests = []
 
-
 # run tests
 for i in failFiles:
     fname = failDir + i
@@ -36,6 +41,10 @@ for i in failFiles:
         print('Error: program output for file "' + fname + '" is empty')
         failTests.append(False)
 
+    if verbose:
+        print(fname + ': ')
+        print(result.stderr)
+
 for i in passFiles:
     fname = passDir + i
     result = subprocess.run(txlCommand + [fname], capture_output=True, text=True)
@@ -49,6 +58,10 @@ for i in passFiles:
     else:
         print(redColorCode + 'Error: program output for file "' + fname + '" is empty' + endCode)
         passTests.append(None)
+
+    if verbose:
+        print(fname + ': ')
+        print(result.stderr)
 
 
 # print test results

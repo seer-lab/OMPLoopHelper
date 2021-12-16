@@ -11,7 +11,7 @@ include "C18/c-comments.grm"
 % 1. have c code, with at least one for loop
 % 2. before the for loop you want to test, add this comment: //@omp-analysis=true
 % 3. run: txl isParallelizable.txl [c code filepath] -comment
-%       - without full program output: txl isParallelizable.txl [c code filepath] -comment -o /dev/null
+%       - without full program output: txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null
 
 
 %_____________ redefine/define necessary patterns _____________
@@ -40,6 +40,11 @@ redefine for_statement
 end redefine
 
 
+%redefine block_item
+%    [attr srclinenumber] [declaration_or_statement]
+%end redefine
+
+
 
 %_____________ main: apply functions/rules to entire program _____________
 
@@ -64,7 +69,7 @@ rule checkForParallel
         '//@omp-analysis=true
         ln [srclinenumber] f [for_statement]
     construct message1 [stringlit]
-        _ [+ "Found loop on line "] [quote ln] [+ " (step 1): "] [message ""] [print] [message ""] [message cf]
+        _ [+ "Analyzing for loop on line "] [quote ln] [+ ": "] [message ""] [print] [message f] [message ""]
     deconstruct f
         'for '( nnd [opt non_null_declaration] el1 [opt expression_list] '; el2 [opt expression_list] soel [opt semi_opt_expression_list] ') ss [sub_statement]
     deconstruct ss 
@@ -73,24 +78,24 @@ rule checkForParallel
         '{ b [repeat block_item] '}
     where not
         b [subScopeNotCompatible]
-    construct message2 [repeat any]
-        _   [message ""] 
-            [message "Loop passed pragma compatibility test (step 2)"] 
-            [message ""]
-            [message "reference-test process:"]
-            [message " - collecting assigned-to elements"]
+    %construct message2 [repeat any]
+    %    _   [message ""]
+    %        [message "Loop passed pragma compatibility test (step 2)"] 
+    %        [message ""]
+    %        [message "reference-test process:"]
+    %        [message " - collecting assigned-to elements"]
     construct message3 [repeat block_item]
-        b [storeAssignedToElements] [message " - stored assigned-to elements"]
-    construct message4 [repeat any]
-        _ [message " - iterating through referenced elements: checking for assigned-to elements"] [message ""]
+        b [storeAssignedToElements] %[message " - stored assigned-to elements"]
+    %construct message4 [repeat any]
+    %    _ [message " - iterating through referenced elements: checking for assigned-to elements"] [message ""]
     where not
         b [isReferencedElementAssignedTo]
-    construct message5 [repeat any]
-        _ [message ""] [message "Passed reference-test (step 3)"]
+    %construct message5 [repeat any]
+    %    _ [message ""] [message "Passed reference-test (step 3)"]
     %construct nf [for_statement]
     %    'for '( nnd el1 '; el2 soel ') '{ b '}
     by
-        cf [message ""] [message "Success. This loop can be parallelized"]
+        cf [message "Success. This loop can be parallelized"]
 end rule
 
 
@@ -118,6 +123,7 @@ rule isAssignedTo
         b [elementIsAssignedTo]
     construct message [stringlit]
         _ [+ "    on line: "] [quote b] [print]
+
 end rule
 
 % subrule: check assignment expressions for referenced elements which are assigned to
@@ -129,8 +135,8 @@ rule isAssignedTo_AssignmentReference
         ce [conditional_expression] aae [assign_assignment_expression]
     where
         aae [elementIsAssignedTo]
-    construct message [stringlit]
-        _ [+ "    on line: "] [quote ae] [print] [message ""] [message ""]
+    %construct message [stringlit]
+    %    _ [+ "    on line: "] [quote ae] [print] [message ""] [message ""]
 end rule
 
 % check if element is in list of unary expressions
@@ -149,7 +155,11 @@ rule isInRepeat e [unary_expression]
     where
         e1 [= e]
     construct message [stringlit]
-        _ [+ "Failure: this element is written to and read on different iterations, making the loop un-parallelizable: "] [quote e1] [print]
+        _ [+ "This location is written to and read on different iterations: "] 
+          [quote e1] 
+          [print]
+          [message "This may mean the loop cannot be parallelized or must be refactored before being parallelized."]
+          [message ""]
 end rule
     
 
@@ -173,8 +183,8 @@ function addAssignedToElement
     import assignedToElements [repeat unary_expression]
     match [unary_expression]
         newEntry [unary_expression]
-    construct message1 [stringlit]
-        _ [+ "    found assigned-to element: "] [quote newEntry] [print]
+    %construct message1 [stringlit]
+    %    _ [+ "    found assigned-to element: "] [quote newEntry] [print]
     construct newAssignedToElements [repeat unary_expression]
         assignedToElements [. newEntry]
     export assignedToElements
@@ -198,5 +208,5 @@ function isJumpStatement
     match [block_item]
         j [jump_statement] s [semi]
     construct message1 [stringlit]
-        _ [+ " - This for loop is not automatically parallelizable. A jump statement makes the block non-structured: "] [quote j] [quote s] [+ " (step 2)"] [print]
+        _ [+ "This for loop is not currently parallelizable. A *"] [quote j] [+ "* statement makes the block non-structured: "] [print]
 end function
