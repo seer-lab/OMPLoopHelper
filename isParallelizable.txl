@@ -95,7 +95,7 @@ rule checkForParallel
     %construct nf [for_statement]
     %    'for '( nnd el1 '; el2 soel ') '{ b '}
     by
-        cf [message "Success. This loop can be parallelized"]
+        cf [message "No parallelization problems found with this loop."]
 end rule
 
 
@@ -155,11 +155,11 @@ rule isInRepeat e [unary_expression]
     where
         e1 [= e]
     construct message [stringlit]
-        _ [+ "This location is written to and read on different iterations: "] 
-          [quote e1] 
-          [print]
-          [message "This may mean the loop cannot be parallelized or must be refactored before being parallelized."]
-          [message ""]
+        _   [message ""]
+            [+ "This location is written to and read on different iterations: "] 
+            [quote e1] 
+            [print]
+            [message "This may mean the loop cannot be parallelized or must be refactored before being parallelized."]
 end rule
     
 
