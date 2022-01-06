@@ -15,7 +15,7 @@ redColorCode = '\x1b[1;31m'
 underlineCode = '\x1b[4m'
 endCode = '\x1b[0m'
 
-successString = 'No parallelization problems found with this loop.'
+successString = 'No parallelization problems found with this loop.'                                                            
 
 # use ls to get each filename in tests/fail
 result = subprocess.run(['ls', failDir], stdout=subprocess.PIPE)

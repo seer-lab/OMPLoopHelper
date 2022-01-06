@@ -17,10 +17,8 @@ int main(){
 
     //@omp-analysis=true
     for (i = 0; i < NUM_THREADS; i++){
-        for (j = 0; j < NUM_THREADS; j++){
-            result[i][j] = i * j;
-            printf("Index [%d,%d] = %f \n", i, j, result[i][j]);
-        }
+        //@omp-analysis=false
+        
         // this operation means the collapse argument cannot be used
         result[i][j] += 1;
     }

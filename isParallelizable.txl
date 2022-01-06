@@ -88,6 +88,8 @@ rule checkForParallel
         b [storeAssignedToElements] %[message " - stored assigned-to elements"]
     %construct message4 [repeat any]
     %    _ [message " - iterating through referenced elements: checking for assigned-to elements"] [message ""]
+    construct collapseTest [repeat block_item]
+        b [canBeCollapsed]
     where not
         b [isReferencedElementAssignedTo]
     %construct message5 [repeat any]
@@ -97,6 +99,57 @@ rule checkForParallel
     by
         cf [message "No parallelization problems found with this loop."]
 end rule
+
+
+
+%_____________ check if for loop is nested and can be collapsed _____________
+function canBeCollapsed
+    match $ [repeat block_item]
+        b [repeat block_item]
+    where
+        b [containsForLoop]
+    where not
+        b [containsNonForLoop]
+    construct canBeCollapsedMessage [repeat any]
+        _ [message "This for loop can be collapsed"]
+end function
+
+function containsNonForLoop
+    match $ [repeat block_item]
+        b [repeat block_item]
+    where
+        b [checkForNonForLoop]
+    construct cantBeCollapsedMessage [repeat any]
+        _ [message "This for loop cannot be collapsed without refactoring."]
+end function
+
+rule checkForNonForLoop
+    % ignore nested loop scope
+    skipping [sub_statement]
+    match $ [block_item]
+        bi [block_item]
+    where not
+        bi [isForLoop]
+    where not
+        bi [containsComment]
+    construct comment [stringlit]
+        _ [+ "nonForLoop, line: "] [quote bi] [print]
+end rule
+
+rule containsForLoop
+    match $ [block_item]
+        fs [for_statement]
+end rule
+
+function isForLoop
+    match $ [block_item]
+        fs [for_statement]
+end function
+
+function containsComment
+    match $ [block_item]
+        c [comment]
+end function
 
 
 
