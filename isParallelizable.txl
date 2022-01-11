@@ -40,9 +40,9 @@ redefine for_statement
 end redefine
 
 
-%redefine block_item
-%    [attr srclinenumber] [declaration_or_statement]
-%end redefine
+redefine block_item
+    [attr srclinenumber] [declaration_or_statement]
+end redefine
 
 %redefine declaration
 %	...
@@ -174,13 +174,13 @@ end function
 % subrule: check for referenced elements which are assigned to in block
 rule isAssignedTo
     match $ [block_item]
-        b [block_item]
-    deconstruct not b % assignment expressions are checked in other subrule
+        ln [srclinenumber] ds [declaration_or_statement]
+    deconstruct not ds % assignment expressions are checked in other subrule
         ce [conditional_expression] aae [assign_assignment_expression] ';
     where
-        b [elementIsAssignedTo]
+        ds [elementIsAssignedTo]
     construct message [stringlit]
-        _ [+ "    on line: "] [quote b] [print]
+        _ [+ "on line "] [quote ln] [+ ": "] [print] [message ds]
 end rule
 
 % subrule: check assignment expressions for referenced elements which are assigned to
