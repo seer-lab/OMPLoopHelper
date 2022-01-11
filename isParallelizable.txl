@@ -44,6 +44,11 @@ end redefine
 %    [attr srclinenumber] [declaration_or_statement]
 %end redefine
 
+%redefine declaration
+%	...
+%    |	[comment]
+%end redefine
+
 
 
 %_____________ main: apply functions/rules to entire program _____________
@@ -111,7 +116,7 @@ function canBeCollapsed
     where not
         b [containsNonForLoop]
     construct canBeCollapsedMessage [repeat any]
-        _ [message "This for loop can be collapsed"]
+        _ [message "This for loop can use the collapse construct."]
 end function
 
 function containsNonForLoop
@@ -120,7 +125,7 @@ function containsNonForLoop
     where
         b [checkForNonForLoop]
     construct cantBeCollapsedMessage [repeat any]
-        _ [message "This for loop cannot be collapsed without refactoring."]
+        _ [message "This for loop cannot use the collapse construct without refactoring."]
 end function
 
 rule checkForNonForLoop
@@ -132,8 +137,8 @@ rule checkForNonForLoop
         bi [isForLoop]
     where not
         bi [containsComment]
-    construct comment [stringlit]
-        _ [+ "nonForLoop, line: "] [quote bi] [print]
+    %construct comment [stringlit]
+    %    _ [+ "nonForLoop, line: "] [quote bi] [print]
 end rule
 
 rule containsForLoop
@@ -176,7 +181,6 @@ rule isAssignedTo
         b [elementIsAssignedTo]
     construct message [stringlit]
         _ [+ "    on line: "] [quote b] [print]
-
 end rule
 
 % subrule: check assignment expressions for referenced elements which are assigned to
@@ -210,9 +214,11 @@ rule isInRepeat e [unary_expression]
     construct message [stringlit]
         _   [message ""]
             [+ "This location is written to and read on different iterations: "] 
-            [quote e1] 
+            [quote e1]
             [print]
             [message "This may mean the loop cannot be parallelized or must be refactored before being parallelized."]
+    %construct message2 [stringlit]
+    %    _ [quote e1] [print]
 end rule
     
 
