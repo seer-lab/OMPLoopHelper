@@ -132,27 +132,27 @@ rule checkForNonForLoop
     % ignore nested loop scope
     skipping [sub_statement]
     match $ [block_item]
-        bi [block_item]
+        ln [srclinenumber] ds [declaration_or_statement]
     where not
-        bi [isForLoop]
+        ds [isForLoop]
     where not
-        bi [containsComment]
+        ds [containsComment]
     %construct comment [stringlit]
     %    _ [+ "nonForLoop, line: "] [quote bi] [print]
 end rule
 
 rule containsForLoop
-    match $ [block_item]
+    match $ [declaration_or_statement]
         fs [for_statement]
 end rule
 
 function isForLoop
-    match $ [block_item]
+    match $ [declaration_or_statement]
         fs [for_statement]
 end function
 
 function containsComment
-    match $ [block_item]
+    match $ [declaration_or_statement]
         c [comment]
 end function
 
@@ -265,7 +265,7 @@ end rule
 % determine if line violates structured-block condition
 function isJumpStatement
     match [block_item]
-        j [jump_statement] s [semi]
-    construct message1 [stringlit]
-        _ [+ "This for loop is not currently parallelizable. A *"] [quote j] [+ "* statement makes the block non-structured: "] [print]
+        ln [srclinenumber] j [jump_statement] s [semi]
+    construct message [stringlit]
+        _ [+ "This for loop is not currently parallelizable. A \""] [quote j] [+ "\" statement on line "] [quote ln] [+ " makes the block non-structured."] [print]
 end function
