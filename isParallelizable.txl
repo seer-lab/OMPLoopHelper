@@ -58,6 +58,8 @@ function main
         p [program]
     export assignedToElements [repeat unary_expression]
         _
+    export assignedToIdentifiers [repeat identifier]
+        _
     by
         p [checkForParallel]
 end function
@@ -91,12 +93,16 @@ rule checkForParallel
     %        [message " - collecting assigned-to elements"]
     construct message3 [repeat block_item]
         b [storeAssignedToElements] %[message " - stored assigned-to elements"]
+
+    %construct message3i [repeat block_item]
+    %    b [storeAssignedToIdentifiers]
+
     %construct message4 [repeat any]
     %    _ [message " - iterating through referenced elements: checking for assigned-to elements"] [message ""]
     construct collapseTest [repeat block_item]
         b [canBeCollapsed]
     where not
-        b [isReferencedElementAssignedTo]
+        b [isReferencedIdentifierAssignedTo]
     %construct message5 [repeat any]
     %    _ [message ""] [message "Passed reference-test (step 3)"]
     %construct nf [for_statement]
@@ -162,13 +168,15 @@ end function
 
 
 % check block for referenced elements which are assigned to
-function isReferencedElementAssignedTo
+function isReferencedIdentifierAssignedTo
     skipping [subscript_extension]
     match $ [repeat block_item]
         b [repeat block_item]
     where
         b   [isAssignedTo]
             [isAssignedTo_AssignmentReference]
+    construct m [repeat any]
+        _ [message "This might mean the loop cannot be parallelized in its current state."]
 end function
 
 % subrule: check for referenced elements which are assigned to in block
@@ -178,9 +186,9 @@ rule isAssignedTo
     deconstruct not ds % assignment expressions are checked in other subrule
         ce [conditional_expression] aae [assign_assignment_expression] ';
     where
-        ds [elementIsAssignedTo]
-    construct message [stringlit]
-        _ [+ "on line "] [quote ln] [+ ": "] [print] [message ds]
+        ds [identifierIsAssignedTo]
+    %construct message [stringlit]
+    %    _ [+ "on line "] [quote ln] [+ ": "] [print] [message ds]
 end rule
 
 % subrule: check assignment expressions for referenced elements which are assigned to
@@ -191,7 +199,7 @@ rule isAssignedTo_AssignmentReference
     deconstruct ae
         ce [conditional_expression] aae [assign_assignment_expression]
     where
-        aae [elementIsAssignedTo]
+        aae [identifierIsAssignedTo] %[elementIsAssignedTo]
     %construct message [stringlit]
     %    _ [+ "    on line: "] [quote ae] [print] [message ""] [message ""]
 end rule
@@ -220,6 +228,25 @@ rule isInRepeat e [unary_expression]
     %construct message2 [stringlit]
     %    _ [quote e1] [print]
 end rule
+
+rule identifierIsAssignedTo
+    import assignedToIdentifiers [repeat identifier]
+    match $ [identifier]
+        id [identifier]
+    where
+        assignedToIdentifiers [isInRepeatID id]
+end rule
+
+rule isInRepeatID id [identifier]
+    match * [identifier]
+        id1 [identifier]
+    where
+        id1 [= id]
+    construct message [stringlit]
+        _   [+ "This location is written to and read on different iterations (ID): "] 
+            [quote id1]
+            [print]
+end rule
     
 
 
@@ -246,9 +273,24 @@ function addAssignedToElement
     %    _ [+ "    found assigned-to element: "] [quote newEntry] [print]
     construct newAssignedToElements [repeat unary_expression]
         assignedToElements [. newEntry]
+    construct none [unary_expression]
+        newEntry [addAssignedToIdentifier]
     export assignedToElements
         newAssignedToElements
 end function
+
+function addAssignedToIdentifier
+    import assignedToIdentifiers [repeat identifier]
+    match [unary_expression]
+        pe [primary_expression] pte [repeat postfix_extension]
+    deconstruct pe
+        newEntry [identifier]
+    %construct message1 [stringlit]
+    %    _ [+ "    found assigned-to identifier: "] [quote newEntry] [print]
+    export assignedToIdentifiers
+        assignedToIdentifiers [. newEntry]
+end function
+
 
 
 
