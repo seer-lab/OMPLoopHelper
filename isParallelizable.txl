@@ -56,10 +56,6 @@ end redefine
 function main
     replace [program]
         p [program]
-    export assignedToElements [repeat unary_expression]
-        _
-    export assignedToIdentifiers [repeat identifier]
-        _
     by
         p [checkForParallel]
 end function
@@ -75,6 +71,15 @@ rule checkForParallel
     deconstruct cf
         '//@omp-analysis=true
         ln [srclinenumber] f [for_statement]
+
+    % "lists" used to check if referenced elements are assigned to
+    export assignedToElements [repeat unary_expression]
+        _
+    export assignedToIdentifiers [repeat identifier]
+        _
+    export printedIdentifiers [repeat identifier]
+        _
+
     construct message1 [stringlit]
         _ [+ "Analyzing for loop on line "] [quote ln] [+ ": "] [message ""] [print] [message f] [message ""]
     deconstruct f
@@ -185,7 +190,7 @@ rule isAssignedTo
         ln [srclinenumber] ds [declaration_or_statement]
     deconstruct not ds % assignment expressions are checked in other subrule
         ce [conditional_expression] aae [assign_assignment_expression] ';
-    where
+    where all
         ds [identifierIsAssignedTo]
     %construct message [stringlit]
     %    _ [+ "on line "] [quote ln] [+ ": "] [print] [message ds]
@@ -231,21 +236,33 @@ end rule
 
 rule identifierIsAssignedTo
     import assignedToIdentifiers [repeat identifier]
+    import printedIdentifiers [repeat identifier]
     match $ [identifier]
         id [identifier]
     where
         assignedToIdentifiers [isInRepeatID id]
+    % don't match if this id has already been caught
+    where not
+        printedIdentifiers [isInRepeatID id]
+    export printedIdentifiers
+        printedIdentifiers [. id]
+    %construct message [stringlit]
+    %    _ [quote printedIdentifiers] [print]
+    construct message [stringlit]
+        _   [+ "This location is written to and read on different iterations: "] 
+            [quote id]
+            [print]
 end rule
 
 rule isInRepeatID id [identifier]
     match * [identifier]
         id1 [identifier]
+    %construct message0 [stringlit]
+    %    _ [+ "comparing "] [quote id1] [+ " and "] [quote id] [print]
+    %construct messag1 [stringlit]
+    %    _ [+ "passed"] [print]
     where
         id1 [= id]
-    construct message [stringlit]
-        _   [+ "This location is written to and read on different iterations (ID): "] 
-            [quote id1]
-            [print]
 end rule
     
 
