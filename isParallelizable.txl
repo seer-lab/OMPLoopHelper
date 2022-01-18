@@ -113,7 +113,7 @@ rule checkForParallel
     %construct nf [for_statement]
     %    'for '( nnd el1 '; el2 soel ') '{ b '}
     by
-        cf [message "No parallelization problems found with this loop."]
+        cf [message "[INFO] No parallelization problems found with this loop."]
 end rule
 
 
@@ -127,7 +127,7 @@ function canBeCollapsed
     where not
         b [containsNonForLoop]
     construct canBeCollapsedMessage [repeat any]
-        _ [message "This for loop can use the collapse construct."]
+        _ [message "[SUGGESTION] Use the collapse construct when parallelizing this for loop."]
 end function
 
 function containsNonForLoop
@@ -136,7 +136,7 @@ function containsNonForLoop
     where
         b [checkForNonForLoop]
     construct cantBeCollapsedMessage [repeat any]
-        _ [message "This for loop cannot use the collapse construct without refactoring."]
+        _ [message "[INFO] This for loop cannot use the collapse construct without refactoring."]
 end function
 
 rule checkForNonForLoop
@@ -180,8 +180,8 @@ function isReferencedIdentifierAssignedTo
     where
         b   [isAssignedTo]
             [isAssignedTo_AssignmentReference]
-    construct m [repeat any]
-        _ [message "This might mean the loop cannot be parallelized in its current state."]
+    %construct m [repeat any]
+    %    _ [message "This might mean the loop cannot be parallelized in its current state."]
 end function
 
 % subrule: check for referenced elements which are assigned to in block
@@ -224,12 +224,12 @@ rule isInRepeat e [unary_expression]
         e1 [unary_expression]
     where
         e1 [= e]
-    construct message [stringlit]
-        _   [message ""]
-            [+ "This location is written to and read on different iterations: "] 
-            [quote e1]
-            [print]
-            [message "This may mean the loop cannot be parallelized or must be refactored before being parallelized."]
+    %construct message [stringlit]
+    %    _   [message ""]
+    %        [+ "This location is written to and read on different iterations: "] 
+    %        [quote e1]
+    %        [print]
+    %        [message "This may mean the loop cannot be parallelized or must be refactored before being parallelized."]
     %construct message2 [stringlit]
     %    _ [quote e1] [print]
 end rule
@@ -249,7 +249,7 @@ rule identifierIsAssignedTo
     %construct message [stringlit]
     %    _ [quote printedIdentifiers] [print]
     construct message [stringlit]
-        _   [+ "This location is written to and read on different iterations: "] 
+        _   [+ "[WARNING] This loop may need to be refactored before being parallelized. A location is written to and read in different iterations: "] 
             [quote id]
             [print]
 end rule
@@ -326,5 +326,10 @@ function isJumpStatement
     match [block_item]
         ln [srclinenumber] j [jump_statement] s [semi]
     construct message [stringlit]
-        _ [+ "This for loop is not currently parallelizable. A \""] [quote j] [+ "\" statement on line "] [quote ln] [+ " makes the block non-structured."] [print]
+        _   [+ "[WARNING] This for loop can not be parallelized. A \""] 
+            [quote j] 
+            [+ "\" statement on line "] 
+            [quote ln] 
+            [+ " makes the block non-structured."] 
+            [print]
 end function
