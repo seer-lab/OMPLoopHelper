@@ -1,7 +1,5 @@
-# run command:
-# python3 runTests.py
-# or, for more output:
-# python3 runTests.py -v
+# run command:          python3 runTests.py
+# or, for more output:  python3 runTests.py -v
 
 import subprocess
 import sys
@@ -21,6 +19,7 @@ underlineCode = '\x1b[4m'
 endCode = '\x1b[0m'
 
 successString = '[INFO] No parallelization problems found with this loop.'
+failString = '[WARNING]'
 
 # use ls to get each filename in tests/fail
 result = subprocess.run(['ls', failDir], stdout=subprocess.PIPE)
@@ -40,7 +39,7 @@ for i in failFiles:
     lines = str(result.stderr).split('\n')
 
     if len(lines) > 2:
-        if(lines[-2][:len(successString)] != successString):
+        if(lines[-2][:len(failString)] == failString):
             failTests.append(greenColorCode + 'Pass' + endCode)
         else:
             failTests.append(redColorCode + 'Fail' + endCode)
@@ -74,8 +73,8 @@ for i in passFiles:
 # print test results
 print('\n' + underlineCode + 'Fail tests:' + endCode)
 for i in range(len(failTests)):
-    print((str(i) + '. ' + failFiles[i] + '\t' + failTests[i]).expandtabs(30))
+    print((str(i) + '. ' + failFiles[i] + '\t' + failTests[i]).expandtabs(50))
 
 print('\n' + underlineCode + 'Pass tests:' + endCode)
 for i in range(len(passTests)):
-    print((str(i) + '. ' + passFiles[i] + '\t' + passTests[i]).expandtabs(30))
+    print((str(i) + '. ' + passFiles[i] + '\t' + passTests[i]).expandtabs(50))

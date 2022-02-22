@@ -10,7 +10,7 @@
 % 2. before the for loop you want to test, add this comment: //@omp-analysis=true
 % 3. run                          : txl isParallelizable.txl [c code filepath] -comment
 %   - without full program output : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null
-%   - with debugging messages     : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null - -db 
+%   - with debugging messages     : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null - -db
 
 
 %_____________ Include grammar definitions _____________
@@ -57,8 +57,8 @@ function printdb
 end function
 
 function messagedb s [stringlit]
-    replace [stringlit]
-        s0 [stringlit]
+    replace [any]
+        a [any]
     import TXLargs [repeat stringlit]
     deconstruct * TXLargs
         "-db"
@@ -66,7 +66,7 @@ function messagedb s [stringlit]
     construct m1 [stringlit]
         s [print]
     by
-        s0
+        a
 end function
 
 
@@ -100,7 +100,7 @@ rule checkForParallel
         0
     export loopHasMemoryConflict [number]
         0
-    
+
 
     % match annotated for-loop
     replace $ [comment_for]
@@ -110,26 +110,25 @@ rule checkForParallel
         ln [srclinenumber] f [for_statement]
 
 
-    %
     construct m0 [stringlit]
         _ [+ "Analyzing for loop on line "] [quote ln] [+ ": "] [message ""] [print] [message f] [message ""]
     deconstruct f
         'for '( nnd [opt non_null_declaration] el1 [opt expression_list] '; el2 [opt expression_list] soel [opt semi_opt_expression_list] ') ss [sub_statement]
-    % this deconstruction of substatement only works with 
+    % this deconstruction of substatement only works with
     % block surrounded by { and }, not a single line for loop (TODO: support single-line-block for loops)
-    deconstruct ss 
+    deconstruct ss
         '{ b [repeat block_item] '}
     where not
         b [subScopeNotCompatible]
     construct m1 [repeat any]
         _   [messagedb "Loop passed pragma compatibility test (step 2)"]
-    
 
-    % run collapse test - 
+
+    % run collapse test -
     construct collapseTest [repeat block_item]
         b [canBeCollapsed]
 
-    
+
     % check for memory conflict
     construct m2 [repeat block_item]
         b [storeAssignedToElements]
@@ -140,8 +139,6 @@ rule checkForParallel
     construct m4 [repeat any]
         _ [messagedb "Loop passed memory-conflic test (step 4)"]
 
-%    where not
-%        ss [referencedThenLaterAssigned]
 
     % print success message
     by
@@ -205,7 +202,7 @@ function checkTheresNoMemoryConflict
 
     construct b1 [repeat block_item]
         b [checkAssignmentForMemoryConflict]
-    
+
     % check memory conflict flag
     import loopHasMemoryConflict [number]
     where not
@@ -230,7 +227,7 @@ rule checkAssignmentForMemoryConflict
     % check that this block item is an assignment
     % TODO: simplify
     where
-        assignmentInfo [assignmentInfoHasLineAndAINum ln checkAINum] 
+        assignmentInfo [assignmentInfoHasLineAndAINum ln checkAINum]
     construct m0 [stringlit]
         _ [+ "line "] [quote ln] [+ " has an assignment: "] [quote ds] [printdb]
 
@@ -256,7 +253,7 @@ rule assignmentInfoHasLineAndAINum ln [srclinenumber] n [number]
         it [= n]
 end rule
 
-% 
+%
 rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] rootIt [number]
     construct message1 [stringlit]
         _ [+ "       - in  getAssignmentInfo it="] [quote it] [printdb]
@@ -282,12 +279,12 @@ rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] roo
     % check referenced variables
     where
         ri [traceBackRefdVarsNew rootln rootIt]
-    
+
     construct message3 [stringlit]
         _ [+ " passed getAssignmentInfo"] [printdb]
 end rule
 
-% Check, for each given var, if 
+% Check, for each given var, if
 rule traceBackRefdVarsNew rootln [srclinenumber] rootIt [number]
     match $ [identifier]
         id [identifier]
@@ -318,7 +315,7 @@ rule lineAssignsToId id [identifier] rootln [srclinenumber] rootIt  [number]
     % if there is no later assign ...
     where not
         ai [checkIfAssignAfter rootln aiid it rootIt]
-    
+
     % ... then recursively go back to check ... TODO
     import assignmentInfo [repeat assignment_info]
     construct m2 [repeat assignment_info]
@@ -339,8 +336,8 @@ function checkIfAssignAfter rootln [srclinenumber] id [identifier] it [number] r
         aiit [> rootIt] % it or rootIt???
     construct dbm1 [stringlit]
         _ [+ "WARN: assign after root ln: "] [quote id] [+ " on line "] [quote ln] [printdb]
-    
-    % Finally, check that the id wasn't assigned to earlier in the loop 
+
+    % Finally, check that the id wasn't assigned to earlier in the loop
     % (this would mean there is no memory conflict with this variable..
     % .. , since it is assigned-to in this iteration *before* being referenced)
     import assignmentInfo [repeat assignment_info]
@@ -348,8 +345,8 @@ function checkIfAssignAfter rootln [srclinenumber] id [identifier] it [number] r
         assignmentInfo [isEarlierAssignment rootln id it rootIt]
 
     construct m0 [stringlit]
-        _   [+ "[WARNING] This loop may need to be refactored before being parallelized. Identifier "] [quote id] 
-            [+ " is referenced on line "] [quote rootln]     
+        _   [+ "[WARNING] This loop may need to be refactored before being parallelized. Identifier "] [quote id]
+            [+ " is referenced on line "] [quote rootln]
             [+ " and assigned to on line "] [quote ln] [print]
 
     export loopHasMemoryConflict [number]
@@ -438,7 +435,7 @@ rule identifierIsAssignedTo
     %construct message [stringlit]
     %    _ [quote printedIdentifiers] [print]
     construct message [stringlit]
-        _   [+ "[WARNING] This loop may need to be refactored before being parallelized. A location is written to and read in different iterations: "] 
+        _   [+ "[WARNING] This loop may need to be refactored before being parallelized. A location is written to and read in different iterations: "]
             [quote id]
             [print]
 end rule
@@ -449,7 +446,7 @@ rule isInRepeatID id [identifier]
     where
         id1 [= id]
 end rule
-    
+
 
 
 %_____________ store assigned-to elements in a list _____________
@@ -468,7 +465,7 @@ rule storeAssignedToElements
 
     construct ae [assignment_expression]
         ce [addAssignedToElement] aae
-    by 
+    by
         ln ds
 end rule
 
@@ -498,14 +495,15 @@ function addAssignmentInfo ln [srclinenumber]
         ae
         rid
     import assignmentInfo [repeat assignment_info]
-    export assignmentInfoNum
-        assignmentInfoNum [+ 1]
     export assignmentInfo
         assignmentInfo [. ai]
 
     % add all referenced ID's
     construct m [assign_assignment_expression]
-        aae [findIDs ai ln]
+        aae [findIDs ai ln assignmentInfoNum]
+
+    export assignmentInfoNum
+        assignmentInfoNum [+ 1]
 
     import assignmentInfo
     %construct m1 [stringlit]
@@ -523,29 +521,31 @@ end function
 rule printEachAI
     match $ [assignment_info]
         ai [assignment_info]
-    %construct message [stringlit]
-    %    _ [quote ai] [printdb]
+    construct message [stringlit]
+        _ [quote ai] [printdb]
 end rule
 
-rule findIDs ai [assignment_info] ln [srclinenumber]
+rule findIDs ai [assignment_info] ln [srclinenumber] it [number]
     match $ [identifier]
         id [identifier]
     import assignmentInfo [repeat assignment_info]
     export assignmentInfo
-        assignmentInfo [addRefdID id ln]
+        assignmentInfo [addRefdID id ln it]
 end rule
 
-rule addRefdID id [identifier] ln [srclinenumber]
+rule addRefdID id [identifier] ln [srclinenumber] it [number]
     replace $ [assignment_info]
         ai [assignment_info]
     deconstruct ai
         lnr [srclinenumber]
-        it [number]
+        itr [number]
         idr [identifier]
         aer [assignment_expression]
         ridr [repeat identifier]
     where
         lnr [= ln]
+    where
+        itr [= it]
     by
         lnr
         it
@@ -597,10 +597,10 @@ function isJumpStatement
     match [block_item]
         ln [srclinenumber] j [jump_statement] s [semi]
     construct message [stringlit]
-        _   [+ "[WARNING] This for loop can not be parallelized. A \""] 
-            [quote j] 
-            [+ "\" statement on line "] 
-            [quote ln] 
-            [+ " makes the block non-structured."] 
+        _   [+ "[WARNING] This for loop can not be parallelized. A \""]
+            [quote j]
+            [+ "\" statement on line "]
+            [quote ln]
+            [+ " makes the block non-structured."]
             [print]
 end function
