@@ -1,32 +1,24 @@
-include "C18/c.grm"
-include "C18/c-comments.grm"
-
 % isParallelizable
-% This program checks 3 steps to determine if a for loop is parallelizable
+% This program checks 4 steps to analyze each marked for loop for OpenMP parallelization compatibility
 % 1. match for loop
 % 2. check that loop is pragma-compatible (structured block)
-% 3. check that written-to variables are not referenced in other iterations
+% 3. check for collapse pragma compatibility
+% 4. check for memory conflict with recursive method
 
 % Usage instructions:
 % 1. have c code, with at least one for loop
 % 2. before the for loop you want to test, add this comment: //@omp-analysis=true
-% 3. run: txl isParallelizable.txl [c code filepath] -comment
-%       - without full program output: txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null
+% 3. run                          : txl isParallelizable.txl [c code filepath] -comment
+%   - without full program output : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null
+%   - with debugging messages     : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null - -db 
 
 
-%_____________ redefine/define necessary patterns _____________
+%_____________ Include grammar definitions _____________
+include "C18/c.grm"
+include "C18/c-comments.grm"
 
-% redefine block_item to include comments
-%redefine block_item
-%    ...
-%    | [comment] [NL]
-%    | [comment]
-%end redefine
-%redefine function_definition_or_declaration
-%    ...
-%    | [comment] [NL]
-%    | [comment]
-%end redefine
+
+%_____________ Define/redefine necessary patterns _____________
 
 % define comment_for for easier parsing of for loops preceded by annotation
 define comment_for
@@ -39,19 +31,46 @@ redefine for_statement
     | [comment_for]
 end redefine
 
-
 redefine block_item
     [attr srclinenumber] [declaration_or_statement]
 end redefine
 
-%redefine declaration
-%	...
-%    |	[comment]
-%end redefine
+define assignment_info
+    [srclinenumber] [NL]            % line number
+    [number] [NL]                   % index
+    [identifier] [NL]               % assigned-to identifier
+    [assignment_expression] [NL]    % assignment expression
+    [repeat identifier] [NL]        % referenced identifiers
+end define
 
 
+%_____________ Debugging methods: print/message only if "-db" flag is given _____________
+function printdb
+    match [stringlit]
+        s [stringlit]
+    import TXLargs [repeat stringlit]
+    deconstruct * TXLargs
+        "-db"
+        moreOptions [repeat stringlit]
+    construct m1 [stringlit]
+        s [print]
+end function
 
-%_____________ main: apply functions/rules to entire program _____________
+function messagedb s [stringlit]
+    replace [stringlit]
+        s0 [stringlit]
+    import TXLargs [repeat stringlit]
+    deconstruct * TXLargs
+        "-db"
+        moreOptions [repeat stringlit]
+    construct m1 [stringlit]
+        s [print]
+    by
+        s0
+end function
+
+
+%_____________ Main: apply functions/rules to entire program _____________
 
 function main
     replace [program]
@@ -61,61 +80,73 @@ function main
 end function
 
 
-
-%_____________ master parallelizable-check function _____________
+%_____________ Main parallelizable-check rule _____________
 
 % check if for loop can be parallelized
 rule checkForParallel
-    replace $ [comment_for]
-        cf [comment_for]
-    deconstruct cf
-        '//@omp-analysis=true
-        ln [srclinenumber] f [for_statement]
 
-    % "lists" used to check if referenced elements are assigned to
+    % global vars used to check if referenced elements are assigned to
     export assignedToElements [repeat unary_expression]
         _
     export assignedToIdentifiers [repeat identifier]
         _
     export printedIdentifiers [repeat identifier]
         _
+    export assignmentInfo [repeat assignment_info]
+        _
+    export assignmentInfoNum [number]
+        1
+    export checkAINum [number]
+        0
+    export loopHasMemoryConflict [number]
+        0
+    
 
-    construct message1 [stringlit]
+    % match annotated for-loop
+    replace $ [comment_for]
+        cf [comment_for]
+    deconstruct cf
+        '//@omp-analysis=true
+        ln [srclinenumber] f [for_statement]
+
+
+    %
+    construct m0 [stringlit]
         _ [+ "Analyzing for loop on line "] [quote ln] [+ ": "] [message ""] [print] [message f] [message ""]
     deconstruct f
         'for '( nnd [opt non_null_declaration] el1 [opt expression_list] '; el2 [opt expression_list] soel [opt semi_opt_expression_list] ') ss [sub_statement]
+    % this deconstruction of substatement only works with 
+    % block surrounded by { and }, not a single line for loop (TODO: support single-line-block for loops)
     deconstruct ss 
-        % this deconstruction of substatement only works with 
-        % block surrounded by { and }, not a single line for loop (TODO: support single-line-block for loops)
         '{ b [repeat block_item] '}
     where not
         b [subScopeNotCompatible]
-    %construct message2 [repeat any]
-    %    _   [message ""]
-    %        [message "Loop passed pragma compatibility test (step 2)"] 
-    %        [message ""]
-    %        [message "reference-test process:"]
-    %        [message " - collecting assigned-to elements"]
-    construct message3 [repeat block_item]
-        b [storeAssignedToElements] %[message " - stored assigned-to elements"]
+    construct m1 [repeat any]
+        _   [messagedb "Loop passed pragma compatibility test (step 2)"]
+    
 
-    %construct message3i [repeat block_item]
-    %    b [storeAssignedToIdentifiers]
-
-    %construct message4 [repeat any]
-    %    _ [message " - iterating through referenced elements: checking for assigned-to elements"] [message ""]
+    % run collapse test - 
     construct collapseTest [repeat block_item]
         b [canBeCollapsed]
-    where not
-        b [isReferencedIdentifierAssignedTo]
-    %construct message5 [repeat any]
-    %    _ [message ""] [message "Passed reference-test (step 3)"]
-    %construct nf [for_statement]
-    %    'for '( nnd el1 '; el2 soel ') '{ b '}
+
+    
+    % check for memory conflict
+    construct m2 [repeat block_item]
+        b [storeAssignedToElements]
+    construct m3 [repeat any]
+        _ [printAssignmentInfo] % print assigned to info in db mode
+    where
+        b [checkTheresNoMemoryConflict] %[isReferencedIdentifierAssignedTo]
+    construct m4 [repeat any]
+        _ [messagedb "Loop passed memory-conflic test (step 4)"]
+
+%    where not
+%        ss [referencedThenLaterAssigned]
+
+    % print success message
     by
         cf [message "[INFO] No parallelization problems found with this loop."]
 end rule
-
 
 
 %_____________ check if for loop is nested and can be collapsed _____________
@@ -130,28 +161,6 @@ function canBeCollapsed
         _ [message "[SUGGESTION] Use the collapse construct when parallelizing this for loop."]
 end function
 
-function containsNonForLoop
-    match $ [repeat block_item]
-        b [repeat block_item]
-    where
-        b [checkForNonForLoop]
-    construct cantBeCollapsedMessage [repeat any]
-        _ [message "[INFO] This for loop cannot use the collapse construct without refactoring."]
-end function
-
-rule checkForNonForLoop
-    % ignore nested loop scope
-    skipping [sub_statement]
-    match $ [block_item]
-        ln [srclinenumber] ds [declaration_or_statement]
-    where not
-        ds [isForLoop]
-    where not
-        ds [containsComment]
-    %construct comment [stringlit]
-    %    _ [+ "nonForLoop, line: "] [quote bi] [print]
-end rule
-
 rule containsForLoop
     match $ [declaration_or_statement]
         fs [for_statement]
@@ -162,15 +171,207 @@ function isForLoop
         fs [for_statement]
 end function
 
+function containsNonForLoop
+    match $ [repeat block_item]
+        b [repeat block_item]
+    where
+        b [checkForNonForLoop]
+    construct cantBeCollapsedMessage [repeat any]
+        _ [message "[INFO] This for loop cannot use the collapse construct without refactoring."]
+end function
+
+rule checkForNonForLoop
+    % ignore nested-loop inner-scope
+    skipping [sub_statement]
+    match $ [block_item]
+        ln [srclinenumber] ds [declaration_or_statement]
+    where not
+        ds [isForLoop]
+    where not
+        ds [containsComment]
+end rule
+
 function containsComment
     match $ [declaration_or_statement]
         c [comment]
 end function
 
 
+%_____________ check for memory conflict _____________
 
-%_____________ check referenced _____________
+function checkTheresNoMemoryConflict
+    match $ [repeat block_item]
+        b [repeat block_item]
 
+    construct b1 [repeat block_item]
+        b [checkAssignmentForMemoryConflict]
+    
+    % check memory conflict flag
+    import loopHasMemoryConflict [number]
+    where not
+        loopHasMemoryConflict [= 1]
+
+    construct m [stringlit]
+        _ [+ "pass checkTheresNoMemoryConflict"] [printdb]
+
+end function
+
+% Check if assignment is the root of a memory conflict
+rule checkAssignmentForMemoryConflict
+    match $ [block_item]
+        ln [srclinenumber] ds [declaration_or_statement]
+
+    % import necessary global vars, print debug info
+    import assignmentInfo [repeat assignment_info]
+    import checkAINum [number]
+    export checkAINum
+        checkAINum [+ 1]
+
+    % check that this block item is an assignment
+    % TODO: simplify
+    where
+        assignmentInfo [assignmentInfoHasLineAndAINum ln checkAINum] 
+    construct m0 [stringlit]
+        _ [+ "line "] [quote ln] [+ " has an assignment: "] [quote ds] [printdb]
+
+
+    % recursively check for memory conflict rooted in this line
+    where not
+        assignmentInfo [getAssignmentInfo ln ln checkAINum checkAINum]
+    construct m1 [stringlit]
+        _ [+ "no problem stemming from this line"] [printdb]
+end rule
+
+% check, given a repeat assignment_info, if it contains info for a specific assignment
+rule assignmentInfoHasLineAndAINum ln [srclinenumber] n [number]
+    match $ [assignment_info]
+        ailn [srclinenumber]
+        it [number]
+        id [identifier]
+        ae [assignment_expression]
+        ri [repeat identifier]
+    where
+        ailn [= ln]
+    where
+        it [= n]
+end rule
+
+% 
+rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] rootIt [number]
+    construct message1 [stringlit]
+        _ [+ "       - in  getAssignmentInfo it="] [quote it] [printdb]
+
+    % match assignment_info for given assignment (ln/it)
+    match [assignment_info]
+        ai [assignment_info]
+    deconstruct ai
+        ailn [srclinenumber]
+        aiit [number]
+        id [identifier]
+        ae [assignment_expression]
+        ri [repeat identifier]
+    where
+        ailn [= ln]
+    where
+        aiit [= it]
+
+    % print each referenced var in assignment
+    construct message2 [stringlit]
+        _ [+ "       - references: "] [quote ri] [printdb]
+
+    % check referenced variables
+    where
+        ri [traceBackRefdVarsNew rootln rootIt]
+    
+    construct message3 [stringlit]
+        _ [+ " passed getAssignmentInfo"] [printdb]
+end rule
+
+% Check, for each given var, if 
+rule traceBackRefdVarsNew rootln [srclinenumber] rootIt [number]
+    match $ [identifier]
+        id [identifier]
+    import assignmentInfo [repeat assignment_info]
+    where not
+        assignmentInfo [lineAssignsToId id rootln rootIt]
+end rule
+
+% idIsAssignedTo?
+% match assignment_info where given id is assigned to
+% then ... TODO
+rule lineAssignsToId id [identifier] rootln [srclinenumber] rootIt  [number]
+
+    % match assignment where given id is assigned to
+    match $ [assignment_info]
+        ai [assignment_info]
+    deconstruct ai
+        ln   [srclinenumber]
+        it   [number]
+        aiid [identifier]
+        ae   [assignment_expression]
+        ri   [repeat identifier]
+    where
+        aiid [= id]
+    construct m0 [stringlit]
+        _ [+ " - found line where id "] [quote id] [+ " is assigned to. tracing:"] [printdb]
+
+    % if there is no later assign ...
+    where not
+        ai [checkIfAssignAfter rootln aiid it rootIt]
+    
+    % ... then recursively go back to check ... TODO
+    import assignmentInfo [repeat assignment_info]
+    construct m2 [repeat assignment_info]
+        assignmentInfo [getAssignmentInfo ln rootln it rootIt]
+end rule
+
+% Given an id and an index, check if there is an operation later than the index which assigns to that id
+function checkIfAssignAfter rootln [srclinenumber] id [identifier] it [number] rootIt [number]
+    match $ [assignment_info]
+        ln   [srclinenumber]
+        aiit   [number]
+        aiid [identifier]
+        ae   [assignment_expression]
+        ri   [repeat identifier]
+    construct dbm0 [stringlit]
+        _ [+ "   ln: "] [quote ln] [+ ", rootln: "] [quote rootln] [printdb]
+    where
+        aiit [> rootIt] % it or rootIt???
+    construct dbm1 [stringlit]
+        _ [+ "WARN: assign after root ln: "] [quote id] [+ " on line "] [quote ln] [printdb]
+    
+    % Finally, check that the id wasn't assigned to earlier in the loop 
+    % (this would mean there is no memory conflict with this variable..
+    % .. , since it is assigned-to in this iteration *before* being referenced)
+    import assignmentInfo [repeat assignment_info]
+    where not
+        assignmentInfo [isEarlierAssignment rootln id it rootIt]
+
+    construct m0 [stringlit]
+        _   [+ "[WARNING] This loop may need to be refactored before being parallelized. Identifier "] [quote id] 
+            [+ " is referenced on line "] [quote rootln]     
+            [+ " and assigned to on line "] [quote ln] [print]
+
+    export loopHasMemoryConflict [number]
+        1
+end function
+
+% Given an assignment index and an id, check if there is an earlier assignment to the id
+rule isEarlierAssignment rootln [srclinenumber] id [identifier] it [number] rootIt [number]
+    match $ [assignment_info]
+        ln   [srclinenumber]
+        aiit [number]
+        aiid [identifier]
+        ae   [assignment_expression]
+        ri   [repeat identifier]
+    where
+        aiit [< rootIt] % it or rootIt???
+    where
+        aiid [= id]
+end rule
+
+
+%_____________ Check referenced (Old memory-conflict detection) _____________
 
 % check block for referenced elements which are assigned to
 function isReferencedIdentifierAssignedTo
@@ -180,8 +381,6 @@ function isReferencedIdentifierAssignedTo
     where
         b   [isAssignedTo]
             [isAssignedTo_AssignmentReference]
-    %construct m [repeat any]
-    %    _ [message "This might mean the loop cannot be parallelized in its current state."]
 end function
 
 % subrule: check for referenced elements which are assigned to in block
@@ -192,8 +391,6 @@ rule isAssignedTo
         ce [conditional_expression] aae [assign_assignment_expression] ';
     where all
         ds [identifierIsAssignedTo]
-    %construct message [stringlit]
-    %    _ [+ "on line "] [quote ln] [+ ": "] [print] [message ds]
 end rule
 
 % subrule: check assignment expressions for referenced elements which are assigned to
@@ -224,14 +421,6 @@ rule isInRepeat e [unary_expression]
         e1 [unary_expression]
     where
         e1 [= e]
-    %construct message [stringlit]
-    %    _   [message ""]
-    %        [+ "This location is written to and read on different iterations: "] 
-    %        [quote e1]
-    %        [print]
-    %        [message "This may mean the loop cannot be parallelized or must be refactored before being parallelized."]
-    %construct message2 [stringlit]
-    %    _ [quote e1] [print]
 end rule
 
 rule identifierIsAssignedTo
@@ -257,10 +446,6 @@ end rule
 rule isInRepeatID id [identifier]
     match * [identifier]
         id1 [identifier]
-    %construct message0 [stringlit]
-    %    _ [+ "comparing "] [quote id1] [+ " and "] [quote id] [print]
-    %construct messag1 [stringlit]
-    %    _ [+ "passed"] [print]
     where
         id1 [= id]
 end rule
@@ -271,14 +456,102 @@ end rule
 
 %  store print each assignment expression in scope
 rule storeAssignedToElements
-    replace $ [assignment_expression]
-        ae1 [assignment_expression]
+    replace $ [block_item]
+        ln [srclinenumber] ds [declaration_or_statement]
+    deconstruct ds
+        ae1 [assignment_expression] ';
     deconstruct ae1
         ce [unary_expression] aae [assign_assignment_expression]
+
+    construct message [assignment_expression]
+        ae1 [addAssignmentInfo ln]
+
     construct ae [assignment_expression]
         ce [addAssignedToElement] aae
     by 
+        ln ds
+end rule
+
+% store info on assignment
+function addAssignmentInfo ln [srclinenumber]
+
+    % match important patterns
+    match [assignment_expression]
+        ae [assignment_expression]
+    deconstruct ae
+        ue [unary_expression] aae [assign_assignment_expression]
+    %construct assignedToIds [repeat identifier]
+    deconstruct ue
+        pe [primary_expression] pte [repeat postfix_extension]
+    deconstruct pe
+        assignedToID [identifier]
+
+    import assignmentInfoNum [number]
+
+    % add assignment info to list
+    construct rid [repeat identifier]
+        _
+    construct ai [assignment_info]
+        ln
+        assignmentInfoNum
+        assignedToID
         ae
+        rid
+    import assignmentInfo [repeat assignment_info]
+    export assignmentInfoNum
+        assignmentInfoNum [+ 1]
+    export assignmentInfo
+        assignmentInfo [. ai]
+
+    % add all referenced ID's
+    construct m [assign_assignment_expression]
+        aae [findIDs ai ln]
+
+    import assignmentInfo
+    %construct m1 [stringlit]
+    %    _ [quote assignmentInfo] [printdb]
+end function
+
+function printAssignmentInfo
+    match [repeat any]
+        ra [repeat any]
+    import assignmentInfo [repeat assignment_info]
+    construct message [repeat assignment_info]
+        assignmentInfo [printEachAI]
+end function
+
+rule printEachAI
+    match $ [assignment_info]
+        ai [assignment_info]
+    %construct message [stringlit]
+    %    _ [quote ai] [printdb]
+end rule
+
+rule findIDs ai [assignment_info] ln [srclinenumber]
+    match $ [identifier]
+        id [identifier]
+    import assignmentInfo [repeat assignment_info]
+    export assignmentInfo
+        assignmentInfo [addRefdID id ln]
+end rule
+
+rule addRefdID id [identifier] ln [srclinenumber]
+    replace $ [assignment_info]
+        ai [assignment_info]
+    deconstruct ai
+        lnr [srclinenumber]
+        it [number]
+        idr [identifier]
+        aer [assignment_expression]
+        ridr [repeat identifier]
+    where
+        lnr [= ln]
+    by
+        lnr
+        it
+        idr
+        aer
+        ridr [. id]
 end rule
 
 % function to add assigned-to element to list
@@ -307,8 +580,6 @@ function addAssignedToIdentifier
     export assignedToIdentifiers
         assignedToIdentifiers [. newEntry]
 end function
-
-
 
 
 %_____________ check if subscope is compatible with pragmas _____________
