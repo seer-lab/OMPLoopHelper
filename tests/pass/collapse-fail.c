@@ -16,10 +16,11 @@ int main(){
     //#pragma omp parallel for collapse(2) private(i, j)
 
     //@omp-analysis=true
-    for (i = 0; i < NUM_THREADS; i++){
-        //@omp-analysis=false
-        
-        // this operation means the collapse argument cannot be used
-        result[i][j] += 1;
+    for (i=0; i< 10; i++) {
+        for (j=0; j< 10; j++) {
+            result[i][j] = i * j;
+            printf("Index [%d,%d] = %f \n", i, j, result[i][j]);
+        }
+        printf("");
     }
 }

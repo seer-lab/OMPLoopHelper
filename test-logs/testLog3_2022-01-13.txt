@@ -7,13 +7,8 @@ for (i = 0; i < NUM_THREADS; i++) {
     result[i][j] += 1;
 }
 
-
-This location is written to and read on different iterations: result[i][j]
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-on line 21:
-//@omp-analysis=false
-// this operation means the collapse argument cannot be used
-result[i][j] += 1;
+This location is written to and read on different iterations: result
+This might mean the loop cannot be parallelized in its current state.
 
 tests/fail/fibonacci-GH.c:
 
@@ -23,12 +18,8 @@ for (i = 2; i < 10; i++) {
     fib[i] = fib[i - 1] + fib[i - 2];
 }
 
-
-This location is written to and read on different iterations: fib[i]
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-on line 20:
-//i'th element of series is equal to the sum of i-1'th element and i-2'th element.
-fib[i] = fib[i - 1] + fib[i - 2];
+This location is written to and read on different iterations: fib
+This might mean the loop cannot be parallelized in its current state.
 
 tests/fail/jump-statement.c:
 
@@ -48,9 +39,8 @@ for (int i = 0; i < sizeof (a) / sizeof (int); i++) {
     sum2 += a[i];
 }
 
-
 This location is written to and read on different iterations: sum2
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
+This might mean the loop cannot be parallelized in its current state.
 
 tests/fail/twolist.c:
 
@@ -59,7 +49,8 @@ for (int i = 1; i < 20; i++) {
     A[i] = B[i] - A[i - 1];
 }
 
-No parallelization problems found with this loop.
+This location is written to and read on different iterations: A
+This might mean the loop cannot be parallelized in its current state.
 
 tests/pass/collapse.c:
 
@@ -72,22 +63,8 @@ for (i = 0; i < NUM_THREADS; i++) {
 }
 
 This for loop can use the collapse construct.
-
-This location is written to and read on different iterations: result[i][j]
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-
-This location is written to and read on different iterations: result[i][j]
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-on line 24:
-for (j = 0; j < NUM_THREADS; j++) {
-    result[i][j] = i * j;
-    printf ("Index [%d,%d] = %f \n", i, j, result[i][j]);
-}
-
-This location is written to and read on different iterations: result[i][j]
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-on line 26:
-printf ("Index [%d,%d] = %f \n", i, j, result[i][j]);
+This location is written to and read on different iterations: result
+This might mean the loop cannot be parallelized in its current state.
 
 tests/pass/lect5example1s.c:
 
@@ -100,27 +77,9 @@ for (int i = thread_id; i < num_steps; i = i + t_count) {
     sum[thread_id];
 }
 
-
 This location is written to and read on different iterations: x
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-on line 36:
-//calculate height
-x = (i + 0.5) * step;
-
-This location is written to and read on different iterations: sum[thread_id]
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-on line 38:
-//sum F(x)
-sum[thread_id];
-
-This location is written to and read on different iterations: sum[thread_id]
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-
-This location is written to and read on different iterations: x
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-
-This location is written to and read on different iterations: x
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
+This location is written to and read on different iterations: sum
+This might mean the loop cannot be parallelized in its current state.
 
 tests/pass/pcat-prototype-collapse.c:
 
@@ -155,15 +114,9 @@ for (i = 0; i < num_steps; i++) {
     sum = sum + 4.0 / (1.0 + x * x);
 }
 
-
 This location is written to and read on different iterations: sum
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-
 This location is written to and read on different iterations: x
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
-
-This location is written to and read on different iterations: x
-This may mean the loop cannot be parallelized or must be refactored before being parallelized.
+This might mean the loop cannot be parallelized in its current state.
 
 tests/pass/pragmaForTest.c:
 
@@ -258,7 +211,7 @@ Fail tests:
 1. fibonacci-GH.c             Pass
 2. jump-statement.c           Pass
 3. test-f.c                   Pass
-4. twolist.c                  Fail
+4. twolist.c                  Pass
 
 Pass tests:
 0. collapse.c                 Fail
