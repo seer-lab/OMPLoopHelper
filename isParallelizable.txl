@@ -176,11 +176,6 @@ rule containsForLoop
         fs [for_statement]
 end rule
 
-function isForLoop
-    match $ [declaration_or_statement]
-        fs [for_statement]
-end function
-
 function containsNonForLoop
     match $ [repeat block_item]
         b [repeat block_item]
@@ -200,6 +195,11 @@ rule checkForNonForLoop
     where not
         ds [containsComment]
 end rule
+
+function isForLoop
+    match $ [declaration_or_statement]
+        fs [for_statement]
+end function
 
 function containsComment
     match $ [declaration_or_statement]
@@ -356,8 +356,8 @@ rule lineAssignsToArray ue [unary_expression] rootln [srclinenumber] rootIt [num
     % construct warning message
     construct m1 [stringlit]
         _   [+ "[WARNING] This loop may need to be refactored before being parallelized."]
-            [+ " Array \""] [quote arrayName] [+ "\" is referenced on line "] [quote rootln] 
-            [+ " at element "] [quote ue] [+ " and assigned to on line "] [quote ln] [+ " at element "] 
+            [+ " Array \""] [quote arrayName] [+ "\" is referenced on line "] [quote rootln]
+            [+ " at index "] [quote ue] [+ " and assigned to on line "] [quote ln] [+ " at index "]
             [quote aiue] [print]
 
     export loopHasMemoryConflict [number]
