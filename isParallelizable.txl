@@ -1,4 +1,5 @@
-% isParallelizable
+% isParallelizable.txl
+
 % This program checks 4 steps to analyze each marked for loop for OpenMP parallelization compatibility
 % 1. match for loop
 % 2. check that loop is pragma-compatible (structured block)
@@ -14,6 +15,7 @@
 
 
 %_____________ Include grammar definitions _____________
+% Source: https://www.txl.ca/txl-resources.html
 include "C18/c.grm"
 include "C18/c-comments.grm"
 
@@ -140,7 +142,6 @@ rule checkForParallel
         _ [messagedb "Loop passed memory-conflic test (step 4)"]
 
 
-    % print success message
     by
         cf [message "[INFO] No parallelization problems found with this loop."]
 end rule
@@ -278,20 +279,38 @@ rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] roo
 
     % check referenced variables
     where
-        ri [traceBackRefdVarsNew rootln rootIt]
+        ri [traceBackRefdVarsNew id rootln rootIt]
 
     construct message3 [stringlit]
         _ [+ " passed getAssignmentInfo"] [printdb]
 end rule
 
 % Check, for each given var, if
-rule traceBackRefdVarsNew rootln [srclinenumber] rootIt [number]
+rule traceBackRefdVarsNew rootId [identifier] rootln [srclinenumber] rootIt [number]
     match $ [identifier]
         id [identifier]
+    where not
+        rootId [assignedToIdIsRefd id rootln]
     import assignmentInfo [repeat assignment_info]
     where not
         assignmentInfo [lineAssignsToId id rootln rootIt]
 end rule
+
+% Check if the variable on the left side of assignment is on the right as well
+% (or if a special assignment operator is used (+=, *=, /=, etc.))
+% If it is, give user a suggestion to use a reduction clause
+function assignedToIdIsRefd rid [identifier] ln [srclinenumber]
+    match [identifier]
+        aid [identifier]
+    where
+        aid [= rid]
+    construct m [stringlit]
+        _   [+ "[SUGGESTION] Variable \""] [quote rid]
+            [+ "\" is assigned to and referenced in the same assignment on line "]
+            [quote ln]
+            [+ ". Consider using a reduction clause (e.g. \"reduction(+:"]
+            [quote rid] [+ ")\")"] [print]
+end function
 
 % idIsAssignedTo?
 % match assignment_info where given id is assigned to
@@ -317,19 +336,19 @@ rule lineAssignsToId id [identifier] rootln [srclinenumber] rootIt  [number]
         ai [checkIfAssignAfter rootln aiid it rootIt]
 
     % ... then recursively go back to check ... TODO
-    import assignmentInfo [repeat assignment_info]
-    construct m2 [repeat assignment_info]
-        assignmentInfo [getAssignmentInfo ln rootln it rootIt]
+%:/    import assignmentInfo [repeat assignment_info]
+%:/    construct m2 [repeat assignment_info]
+%:/        assignmentInfo [getAssignmentInfo ln rootln it rootIt]
 end rule
 
 % Given an id and an index, check if there is an operation later than the index which assigns to that id
 function checkIfAssignAfter rootln [srclinenumber] id [identifier] it [number] rootIt [number]
     match $ [assignment_info]
-        ln   [srclinenumber]
-        aiit   [number]
-        aiid [identifier]
-        ae   [assignment_expression]
-        ri   [repeat identifier]
+        ln      [srclinenumber]
+        aiit    [number]
+        aiid    [identifier]
+        ae      [assignment_expression]
+        ri      [repeat identifier]
     construct dbm0 [stringlit]
         _ [+ "   ln: "] [quote ln] [+ ", rootln: "] [quote rootln] [printdb]
     where
