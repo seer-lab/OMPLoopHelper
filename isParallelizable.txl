@@ -40,9 +40,9 @@ end redefine
 define assignment_info
     [srclinenumber] [NL]            % line number
     [number] [NL]                   % index
-    [identifier] [NL]               % assigned-to identifier
+    [unary_expression] [NL]         % assigned-to identifier
     [assignment_expression] [NL]    % assignment expression
-    [repeat identifier] [NL]        % referenced identifiers
+    [repeat unary_expression] [NL]  % referenced identifiers
 end define
 
 
@@ -90,9 +90,9 @@ rule checkForParallel
     % global vars used to check if referenced elements are assigned to
     export assignedToElements [repeat unary_expression]
         _
-    export assignedToIdentifiers [repeat identifier]
+    export assignedToIdentifiers [repeat unary_expression]
         _
-    export printedIdentifiers [repeat identifier]
+    export printedIdentifiers [repeat unary_expression]
         _
     export assignmentInfo [repeat assignment_info]
         _
@@ -112,18 +112,29 @@ rule checkForParallel
         ln [srclinenumber] f [for_statement]
 
 
+    % deconstruct loop, export iterator
     construct m0 [stringlit]
         _ [+ "Analyzing for loop on line "] [quote ln] [+ ": "] [message ""] [print] [message f] [message ""]
     deconstruct f
-        'for '( nnd [opt non_null_declaration] el1 [opt expression_list] '; el2 [opt expression_list] soel [opt semi_opt_expression_list] ') ss [sub_statement]
-    % this deconstruction of substatement only works with
-    % block surrounded by { and }, not a single line for loop (TODO: support single-line-block for loops)
-    deconstruct ss
+        'for '( nnd [non_null_declaration] el1 [opt expression_list] '; el2 [opt expression_list] soel [opt semi_opt_expression_list] ') ss [sub_statement]
+    deconstruct nnd
+        ds  [opt declaration_specifiers]
+        d   [declarator]
+        oi  [opt initialization]
+        ';
+    export iterator [declarator]
+        d
+    construct m00 [stringlit]
+        _ [+ "iterator: "] [quote d] [printdb]
+    deconstruct ss % TODO: support single-line-block for loops
         '{ b [repeat block_item] '}
+
+
+    % check if sub scope is compatible for OpenMP pragmas
     where not
         b [subScopeNotCompatible]
     construct m1 [repeat any]
-        _   [messagedb "Loop passed pragma compatibility test (step 2)"]
+        _ [messagedb "Loop passed pragma compatibility test (step 2)"]
 
 
     % run collapse test -
@@ -142,6 +153,7 @@ rule checkForParallel
         _ [messagedb "Loop passed memory-conflic test (step 4)"]
 
 
+    % replace with original comment-for-loop (no replacement yet), print success message
     by
         cf [message "[INFO] No parallelization problems found with this loop."]
 end rule
@@ -245,16 +257,15 @@ rule assignmentInfoHasLineAndAINum ln [srclinenumber] n [number]
     match $ [assignment_info]
         ailn [srclinenumber]
         it [number]
-        id [identifier]
+        id [unary_expression]
         ae [assignment_expression]
-        ri [repeat identifier]
+        ri [repeat unary_expression]
     where
         ailn [= ln]
     where
         it [= n]
 end rule
 
-%
 rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] rootIt [number]
     construct message1 [stringlit]
         _ [+ "       - in  getAssignmentInfo it="] [quote it] [printdb]
@@ -265,9 +276,9 @@ rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] roo
     deconstruct ai
         ailn [srclinenumber]
         aiit [number]
-        id [identifier]
+        id [unary_expression]
         ae [assignment_expression]
-        ri [repeat identifier]
+        ri [repeat unary_expression]
     where
         ailn [= ln]
     where
@@ -279,29 +290,30 @@ rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] roo
 
     % check referenced variables
     where
-        ri [traceBackRefdVarsNew id rootln rootIt]
+        ri [traceBackRefdVars id rootln rootIt]
 
     construct message3 [stringlit]
         _ [+ " passed getAssignmentInfo"] [printdb]
 end rule
 
 % Check, for each given var, if
-rule traceBackRefdVarsNew rootId [identifier] rootln [srclinenumber] rootIt [number]
-    match $ [identifier]
-        id [identifier]
+rule traceBackRefdVars rootId [unary_expression] rootln [srclinenumber] rootIt [number]
+    match $ [unary_expression]
+        ue [unary_expression]
     where not
-        rootId [assignedToIdIsRefd id rootln]
+        rootId [assignedToIdIsRefd ue rootln]
     import assignmentInfo [repeat assignment_info]
     where not
-        assignmentInfo [lineAssignsToId id rootln rootIt]
+        assignmentInfo  [lineAssignsToId ue rootln rootIt]
+                        [lineAssignsToArray ue rootln rootIt]
 end rule
 
 % Check if the variable on the left side of assignment is on the right as well
 % (or if a special assignment operator is used (+=, *=, /=, etc.))
 % If it is, give user a suggestion to use a reduction clause
-function assignedToIdIsRefd rid [identifier] ln [srclinenumber]
-    match [identifier]
-        aid [identifier]
+function assignedToIdIsRefd rid [unary_expression] ln [srclinenumber]
+    match [unary_expression]
+        aid [unary_expression]
     where
         aid [= rid]
     construct m [stringlit]
@@ -312,10 +324,97 @@ function assignedToIdIsRefd rid [identifier] ln [srclinenumber]
             [quote rid] [+ ")\")"] [print]
 end function
 
+rule lineAssignsToArray ue [unary_expression] rootln [srclinenumber] rootIt [number]
+
+    % deconstruct ue to match an array reference
+    deconstruct ue
+        rpido [repeat pre_increment_decrement_operator] 
+        arrayName [identifier]
+        se [subscript_extension]
+        rpe [repeat postfix_extension] 
+
+    % match assignment_info for array of given ue
+    match $ [assignment_info]
+        ln      [srclinenumber]
+        ind     [number]
+        aiue    [unary_expression]
+        ae      [assignment_expression]
+        rue     [repeat unary_expression]
+    
+    % where aiue and ue are elements of the same array
+    where
+        aiue [sameArray ue]
+
+    % debug message
+    construct m0 [stringlit]
+        _ [+ "found assigned-to array reference on line "] [quote ln] [+ " , line: "] [quote ae] [printdb]
+
+    % check if the array indeces are different
+    where not
+        aiue [sameArrayIndeces ue]
+
+    % construct warning message
+    construct m1 [stringlit]
+        _   [+ "[WARNING] This loop may need to be refactored before being parallelized."]
+            [+ " Array \""] [quote arrayName] [+ "\" is referenced on line "] [quote rootln] 
+            [+ " at element "] [quote ue] [+ " and assigned to on line "] [quote ln] [+ " at element "] 
+            [quote aiue] [print]
+
+    export loopHasMemoryConflict [number]
+        1
+end rule
+
+% given two unary_expressions (one in scope, one as argument), check if both are
+% array references of the same array
+function sameArray a1 [unary_expression]
+    match [unary_expression]
+        a0 [unary_expression]
+    deconstruct a0
+        rpido0 [repeat pre_increment_decrement_operator]
+        arrayName0 [identifier]
+        se0 [subscript_extension]
+        rpe0 [repeat postfix_extension]
+    deconstruct a1
+        rpido1 [repeat pre_increment_decrement_operator]
+        arrayName1 [identifier]
+        se1 [subscript_extension]
+        rpe1 [repeat postfix_extension]
+    where
+        arrayName0 [= arrayName1]
+end function
+
+% given two array indeces, as unary_expressions (one in scope, one as argument), 
+% check if each one references the same element of the array
+function sameArrayIndeces a1 [unary_expression]
+    match [unary_expression]
+        a0 [unary_expression]
+    deconstruct a0
+        rpido0 [repeat pre_increment_decrement_operator]
+        arrayName0 [identifier]
+        se0 [subscript_extension]
+        rpe0 [repeat postfix_extension]
+    deconstruct a1
+        rpido1 [repeat pre_increment_decrement_operator]
+        arrayName1 [identifier]
+        se1 [subscript_extension]
+        rpe1 [repeat postfix_extension]
+    where
+        se0 [= se1]
+end function
+
+
 % idIsAssignedTo?
 % match assignment_info where given id is assigned to
 % then ... TODO
-rule lineAssignsToId id [identifier] rootln [srclinenumber] rootIt  [number]
+rule lineAssignsToId id [unary_expression] rootln [srclinenumber] rootIt  [number]
+
+    % only check variables in this method; 
+    % array elements are handled in lineAssignsToArray
+    deconstruct not id
+        rpido [repeat pre_increment_decrement_operator]
+        arrayName [identifier]
+        se [subscript_extension]
+        rpe [repeat postfix_extension]
 
     % match assignment where given id is assigned to
     match $ [assignment_info]
@@ -323,9 +422,9 @@ rule lineAssignsToId id [identifier] rootln [srclinenumber] rootIt  [number]
     deconstruct ai
         ln   [srclinenumber]
         it   [number]
-        aiid [identifier]
+        aiid [unary_expression]
         ae   [assignment_expression]
-        ri   [repeat identifier]
+        ri   [repeat unary_expression]
     where
         aiid [= id]
     construct m0 [stringlit]
@@ -342,13 +441,13 @@ rule lineAssignsToId id [identifier] rootln [srclinenumber] rootIt  [number]
 end rule
 
 % Given an id and an index, check if there is an operation later than the index which assigns to that id
-function checkIfAssignAfter rootln [srclinenumber] id [identifier] it [number] rootIt [number]
+function checkIfAssignAfter rootln [srclinenumber] id [unary_expression] it [number] rootIt [number]
     match $ [assignment_info]
         ln      [srclinenumber]
         aiit    [number]
-        aiid    [identifier]
+        aiid    [unary_expression]
         ae      [assignment_expression]
-        ri      [repeat identifier]
+        ri      [repeat unary_expression]
     construct dbm0 [stringlit]
         _ [+ "   ln: "] [quote ln] [+ ", rootln: "] [quote rootln] [printdb]
     where
@@ -373,13 +472,13 @@ function checkIfAssignAfter rootln [srclinenumber] id [identifier] it [number] r
 end function
 
 % Given an assignment index and an id, check if there is an earlier assignment to the id
-rule isEarlierAssignment rootln [srclinenumber] id [identifier] it [number] rootIt [number]
+rule isEarlierAssignment rootln [srclinenumber] id [unary_expression] it [number] rootIt [number]
     match $ [assignment_info]
         ln   [srclinenumber]
         aiit [number]
-        aiid [identifier]
+        aiid [unary_expression]
         ae   [assignment_expression]
-        ri   [repeat identifier]
+        ri   [repeat unary_expression]
     where
         aiit [< rootIt] % it or rootIt???
     where
@@ -440,10 +539,10 @@ rule isInRepeat e [unary_expression]
 end rule
 
 rule identifierIsAssignedTo
-    import assignedToIdentifiers [repeat identifier]
-    import printedIdentifiers [repeat identifier]
-    match $ [identifier]
-        id [identifier]
+    import assignedToIdentifiers [repeat unary_expression]
+    import printedIdentifiers [repeat unary_expression]
+    match $ [unary_expression]
+        id [unary_expression]
     where
         assignedToIdentifiers [isInRepeatID id]
     % don't match if this id has already been caught
@@ -459,9 +558,9 @@ rule identifierIsAssignedTo
             [print]
 end rule
 
-rule isInRepeatID id [identifier]
-    match * [identifier]
-        id1 [identifier]
+rule isInRepeatID id [unary_expression]
+    match * [unary_expression]
+        id1 [unary_expression]
     where
         id1 [= id]
 end rule
@@ -496,7 +595,7 @@ function addAssignmentInfo ln [srclinenumber]
         ae [assignment_expression]
     deconstruct ae
         ue [unary_expression] aae [assign_assignment_expression]
-    %construct assignedToIds [repeat identifier]
+    %construct assignedToIds [repeat unary_expression]
     deconstruct ue
         pe [primary_expression] pte [repeat postfix_extension]
     deconstruct pe
@@ -505,12 +604,12 @@ function addAssignmentInfo ln [srclinenumber]
     import assignmentInfoNum [number]
 
     % add assignment info to list
-    construct rid [repeat identifier]
+    construct rid [repeat unary_expression]
         _
     construct ai [assignment_info]
         ln
         assignmentInfoNum
-        assignedToID
+        ue
         ae
         rid
     import assignmentInfo [repeat assignment_info]
@@ -523,10 +622,6 @@ function addAssignmentInfo ln [srclinenumber]
 
     export assignmentInfoNum
         assignmentInfoNum [+ 1]
-
-    import assignmentInfo
-    %construct m1 [stringlit]
-    %    _ [quote assignmentInfo] [printdb]
 end function
 
 function printAssignmentInfo
@@ -545,22 +640,26 @@ rule printEachAI
 end rule
 
 rule findIDs ai [assignment_info] ln [srclinenumber] it [number]
-    match $ [identifier]
+    match $ [unary_expression]
+        ue [unary_expression]
+    deconstruct ue
+        rpido [repeat pre_increment_decrement_operator]
         id [identifier]
+        rpe [repeat postfix_extension]
     import assignmentInfo [repeat assignment_info]
     export assignmentInfo
-        assignmentInfo [addRefdID id ln it]
+        assignmentInfo [addRefdID ue ln it]
 end rule
 
-rule addRefdID id [identifier] ln [srclinenumber] it [number]
+rule addRefdID id [unary_expression] ln [srclinenumber] it [number]
     replace $ [assignment_info]
         ai [assignment_info]
     deconstruct ai
         lnr [srclinenumber]
         itr [number]
-        idr [identifier]
+        idr [unary_expression]
         aer [assignment_expression]
-        ridr [repeat identifier]
+        ridr [repeat unary_expression]
     where
         lnr [= ln]
     where
@@ -589,15 +688,17 @@ function addAssignedToElement
 end function
 
 function addAssignedToIdentifier
-    import assignedToIdentifiers [repeat identifier]
+    import assignedToIdentifiers [repeat unary_expression]
     match [unary_expression]
+        ue [unary_expression]
+    deconstruct ue
         pe [primary_expression] pte [repeat postfix_extension]
     deconstruct pe
         newEntry [identifier]
     %construct message1 [stringlit]
     %    _ [+ "    found assigned-to identifier: "] [quote newEntry] [print]
     export assignedToIdentifiers
-        assignedToIdentifiers [. newEntry]
+        assignedToIdentifiers [. ue]
 end function
 
 
