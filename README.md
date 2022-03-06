@@ -12,7 +12,7 @@ This program checks 4 steps to analyze each marked for loop for OpenMP paralleli
  3. Run: txl isParallelizable.txl [c code filepath] -comment
     - without full program output: txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null
     - with debugging messages: txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null - -db
-    
+
 ## Tests:
  - Run command: python3 runTests.py
  - Include program output: python3 runTests.py -v
