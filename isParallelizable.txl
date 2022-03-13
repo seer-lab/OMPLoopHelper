@@ -9,9 +9,9 @@
 % Usage instructions:
 % 1. have c code, with at least one for loop
 % 2. before the for loop you want to test, add this comment: //@omp-analysis=true
-% 3. run                          : txl isParallelizable.txl [c code filepath] -comment
-%   - without full program output : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null
-%   - with debugging messages     : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null - -db
+% 3. run                                    : txl isParallelizable.txl [c code filepath] -comment
+%   - without full program output (Linux)   : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null
+%   - with debugging messages               : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null - -db
 
 
 %_____________ Include grammar definitions _____________
@@ -26,6 +26,11 @@ include "C18/c-comments.grm"
 define comment_for
     [comment] [NL]
     [attr srclinenumber] [for_statement]
+end redefine
+
+redefine block_item
+    ...
+    | [comment]
 end redefine
 
 redefine for_statement
@@ -150,7 +155,7 @@ rule checkForParallel
     where
         b [checkTheresNoMemoryConflict] %[isReferencedIdentifierAssignedTo]
     construct m4 [repeat any]
-        _ [messagedb "Loop passed memory-conflic test (step 4)"]
+        _ [messagedb "Loop passed memory-conflict test (step 4)"]
 
 
     % replace with original comment-for-loop (no replacement yet), print success message
@@ -186,7 +191,7 @@ function containsNonForLoop
 end function
 
 rule checkForNonForLoop
-    % ignore nested-loop inner-scope
+    % ignore nested loop's inner scope
     skipping [sub_statement]
     match $ [block_item]
         ln [srclinenumber] ds [declaration_or_statement]
@@ -221,9 +226,6 @@ function checkTheresNoMemoryConflict
     where not
         loopHasMemoryConflict [= 1]
 
-    construct m [stringlit]
-        _ [+ "pass checkTheresNoMemoryConflict"] [printdb]
-
 end function
 
 % Check if assignment is the root of a memory conflict
@@ -244,11 +246,10 @@ rule checkAssignmentForMemoryConflict
     construct m0 [stringlit]
         _ [+ "line "] [quote ln] [+ " has an assignment: "] [quote ds] [printdb]
 
-
     % recursively check for memory conflict rooted in this line
     where not
         assignmentInfo [getAssignmentInfo ln ln checkAINum checkAINum]
-    construct m1 [stringlit]
+    construct m2 [stringlit]
         _ [+ "no problem stemming from this line"] [printdb]
 end rule
 
@@ -288,6 +289,9 @@ rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] roo
     construct message2 [stringlit]
         _ [+ "       - references: "] [quote ri] [printdb]
 
+    construct reductionCheck [assignment_expression]
+        ae [checkForReduction ailn]
+
     % check referenced variables
     where
         ri [traceBackRefdVars id rootln rootIt]
@@ -296,12 +300,53 @@ rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] roo
         _ [+ " passed getAssignmentInfo"] [printdb]
 end rule
 
+function checkForReduction ln [srclinenumber]
+    match [assignment_expression]
+        ae [assignment_expression]
+    deconstruct ae
+        ue [unary_expression] aae [assign_assignment_expression]
+    deconstruct aae
+        ao [assignment_operator] ae1 [assignment_expression]
+    where
+        ao [isReductionAssignmentOperator]
+    construct m [stringlit]
+        _   [+ "[SUGGESTION] Variable \""] [quote ue]
+            [+ "\" is assigned to and referenced in the same assignment on line "]
+            [quote ln]
+            [+ ". Consider using a reduction clause (e.g. \"reduction(+:"]
+            [quote ue] [+ ")\")"] [print]
+end function
+
+function isReductionAssignmentOperator
+    match [assignment_operator]
+        ao [assignment_operator]
+    construct ao_add [assignment_operator]
+        '+=
+    construct ao_sub [assignment_operator]
+        '-=
+    construct ao_mul [assignment_operator]
+        '*=
+    construct ao_and [assignment_operator]
+        '&=
+    construct ao_ior [assignment_operator]
+        '|=
+    construct ao_eor [assignment_operator]
+        '^=
+    where
+        ao  [= ao_add]
+            [= ao_sub]
+            [= ao_mul]
+            [= ao_and]
+            [= ao_ior]
+            [= ao_eor]
+end function
+
 % Check, for each given var, if
 rule traceBackRefdVars rootId [unary_expression] rootln [srclinenumber] rootIt [number]
     match $ [unary_expression]
         ue [unary_expression]
     where not
-        rootId [assignedToIdIsRefd ue rootln]
+        rootId  [assignedToIdIsRefd ue rootln]
     import assignmentInfo [repeat assignment_info]
     where not
         assignmentInfo  [lineAssignsToId ue rootln rootIt]
@@ -328,10 +373,10 @@ rule lineAssignsToArray ue [unary_expression] rootln [srclinenumber] rootIt [num
 
     % deconstruct ue to match an array reference
     deconstruct ue
-        rpido [repeat pre_increment_decrement_operator] 
+        rpido [repeat pre_increment_decrement_operator]
         arrayName [identifier]
         se [subscript_extension]
-        rpe [repeat postfix_extension] 
+        rpe [repeat postfix_extension]
 
     % match assignment_info for array of given ue
     match $ [assignment_info]
@@ -340,7 +385,7 @@ rule lineAssignsToArray ue [unary_expression] rootln [srclinenumber] rootIt [num
         aiue    [unary_expression]
         ae      [assignment_expression]
         rue     [repeat unary_expression]
-    
+   
     % where aiue and ue are elements of the same array
     where
         aiue [sameArray ue]
@@ -383,7 +428,7 @@ function sameArray a1 [unary_expression]
         arrayName0 [= arrayName1]
 end function
 
-% given two array indeces, as unary_expressions (one in scope, one as argument), 
+% given two array indeces, as unary_expressions (one in scope, one as argument),
 % check if each one references the same element of the array
 function sameArrayIndeces a1 [unary_expression]
     match [unary_expression]
@@ -408,7 +453,7 @@ end function
 % then ... TODO
 rule lineAssignsToId id [unary_expression] rootln [srclinenumber] rootIt  [number]
 
-    % only check variables in this method; 
+    % only check variables in this method;
     % array elements are handled in lineAssignsToArray
     deconstruct not id
         rpido [repeat pre_increment_decrement_operator]

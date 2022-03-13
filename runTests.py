@@ -39,7 +39,7 @@ for i in failFiles:
     lines = str(result.stderr).split('\n')
 
     if len(lines) > 2:
-        if(lines[-2][:len(failString)] == failString):
+        if(not lines[-2][:len(successString)] == successString):
             failTests.append(greenColorCode + 'Pass' + endCode)
         else:
             failTests.append(redColorCode + 'Fail' + endCode)
