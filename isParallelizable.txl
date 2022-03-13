@@ -28,6 +28,11 @@ define comment_for
     [attr srclinenumber] [for_statement]
 end redefine
 
+redefine block_item
+    ...
+    | [comment]
+end redefine
+
 redefine for_statement
     ...
     | [comment_for]
@@ -150,7 +155,7 @@ rule checkForParallel
     where
         b [checkTheresNoMemoryConflict] %[isReferencedIdentifierAssignedTo]
     construct m4 [repeat any]
-        _ [messagedb "Loop passed memory-conflic test (step 4)"]
+        _ [messagedb "Loop passed memory-conflict test (step 4)"]
 
 
     % replace with original comment-for-loop (no replacement yet), print success message
@@ -186,7 +191,7 @@ function containsNonForLoop
 end function
 
 rule checkForNonForLoop
-    % ignore nested-loop inner-scope
+    % ignore nested loop's inner scope
     skipping [sub_statement]
     match $ [block_item]
         ln [srclinenumber] ds [declaration_or_statement]
@@ -220,9 +225,6 @@ function checkTheresNoMemoryConflict
     import loopHasMemoryConflict [number]
     where not
         loopHasMemoryConflict [= 1]
-
-    construct m [stringlit]
-        _ [+ "pass checkTheresNoMemoryConflict"] [printdb]
 
 end function
 
