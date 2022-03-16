@@ -13,6 +13,7 @@ int main(){
     fib[0] = 0;
     // initialized second element to 1
     fib[1] = 1;
+
     //loop to generate ten elements
     //@omp-analysis=true
     for (i = 2; i < 10; i++){
@@ -20,6 +21,7 @@ int main(){
         
         fib[i] = fib[i - 1] + fib[i - 2];
     }
+
     printf("\n The fibonacci series is as follows : ");
     //print all numbers in the series
     

@@ -28,10 +28,15 @@ define comment_for
     [attr srclinenumber] [for_statement]
 end redefine
 
-redefine block_item
-    ...
-    | [comment]
-end redefine
+%redefine declaration_or_statement
+%    ...
+%    | [comment]
+%end redefine
+
+%redefine block_item
+%    ...
+%    | [comment]
+%end redefine
 
 redefine for_statement
     ...
@@ -107,6 +112,18 @@ rule checkForParallel
         0
     export loopHasMemoryConflict [number]
         0
+    export sharedIdentifiers [repeat identifier]
+        _
+    export privateIdentifiers [repeat identifier]
+        _
+    export defaultIdentifiers [repeat identifier]
+        _
+    export collapse [number]
+        0
+    export hasReduction [number]
+        0
+    export reductionIdentifiers [repeat identifier]
+        _
 
 
     % match annotated for-loop
@@ -145,6 +162,8 @@ rule checkForParallel
     % run collapse test -
     construct collapseTest [repeat block_item]
         b [canBeCollapsed]
+    construct collapseMessage [repeat any]
+        _ [printCollapseInfo]
 
 
     % check for memory conflict
@@ -157,12 +176,61 @@ rule checkForParallel
     construct m4 [repeat any]
         _ [messagedb "Loop passed memory-conflict test (step 4)"]
 
+    construct m5 [repeat any]
+        _ [generatePragma]
+
 
     % replace with original comment-for-loop (no replacement yet), print success message
     by
         cf [message "[INFO] No parallelization problems found with this loop."]
 end rule
 
+
+
+%_____________ Generate suggested pragma parameters _____________
+function generatePragma
+    import collapse [number]
+    import hasReduction [number]
+    import reductionIdentifiers [repeat identifier]
+
+    match [repeat any]
+        ra [repeat any]
+
+    construct reduction [stringlit]
+        _ [+ ""] [addReductionParameter]
+
+    construct m1 [stringlit]
+        _ [+ "[SUGGESTION] Use these parameters: #pragma omp parallel for"] [addReductionParameter] [addCollapseParameter] [print]
+
+    construct m2 [stringlit]
+        _ [+ "collapse: "] [quote collapse] [+ ", hasReduction: "] [quote hasReduction] [+ ", reductionIdentifiers: "] [quote reductionIdentifiers] [printdb]
+
+end function
+
+function addReductionParameter
+    replace [stringlit]
+        sl [stringlit]
+    import hasReduction [number]
+    where
+        hasReduction [= 1]
+    import reductionIdentifiers [repeat identifier]
+    construct reductionParameter [stringlit]
+        _ [+ " reduction(+:"] [quote reductionIdentifiers] [+ ")"]
+    by
+        sl [+ reductionParameter]
+end function
+
+function addCollapseParameter
+    replace [stringlit]
+        sl [stringlit]
+    import collapse [number]
+    where
+        collapse [> 0]
+    construct collapseParameter [stringlit]
+        _ [+ " collapse("] [quote collapse] [+ ")"]
+    by
+        sl [+ collapseParameter]
+end function
 
 %_____________ check if for loop is nested and can be collapsed _____________
 function canBeCollapsed
@@ -172,14 +240,38 @@ function canBeCollapsed
         b [containsForLoop]
     where not
         b [containsNonForLoop]
-    construct canBeCollapsedMessage [repeat any]
-        _ [message "[SUGGESTION] Use the collapse construct when parallelizing this for loop."]
+    import collapse [number]
+    export collapse
+        collapse [+ 1]
+end function
+
+function printCollapseInfo
+    match [repeat any]
+        ra [repeat any]
+    import collapse [number]
+    where
+        collapse [> 0]
+    construct canBeCollapsedMessage [stringlit]
+        _ [+ "[SUGGESTION] Use the collapse construct when parallelizing this for loop: collapse("] [quote collapse] [+ ")"] [print]
 end function
 
 rule containsForLoop
     match $ [declaration_or_statement]
         fs [for_statement]
+    construct m0 [for_statement]
+        fs [checkNestedForLoopForCollapse]
 end rule
+
+function checkNestedForLoopForCollapse
+    match [for_statement]
+        fs [for_statement]
+    deconstruct fs
+        'for '( nnd [opt non_null_declaration] el1 [opt expression_list] '; el2 [opt expression_list] soel [opt semi_opt_expression_list] ') ss [sub_statement]
+    deconstruct ss
+    '{ b [repeat block_item] '}
+    construct rbi [repeat block_item]
+        b [canBeCollapsed]
+end function
 
 function containsNonForLoop
     match $ [repeat block_item]
@@ -233,18 +325,19 @@ rule checkAssignmentForMemoryConflict
     match $ [block_item]
         ln [srclinenumber] ds [declaration_or_statement]
 
+    % check that this block item is an assignment
+    deconstruct ds
+        ae [assignment_expression] ';
+    %where
+    %    assignmentInfo [assignmentInfoHasLineAndAINum ln checkAINum]
+    construct m0 [stringlit]
+        _ [+ "line "] [quote ln] [+ " has an assignment: "] [quote ds] [printdb]
+
     % import necessary global vars, print debug info
     import assignmentInfo [repeat assignment_info]
     import checkAINum [number]
     export checkAINum
         checkAINum [+ 1]
-
-    % check that this block item is an assignment
-    % TODO: simplify
-    where
-        assignmentInfo [assignmentInfoHasLineAndAINum ln checkAINum]
-    construct m0 [stringlit]
-        _ [+ "line "] [quote ln] [+ " has an assignment: "] [quote ds] [printdb]
 
     % recursively check for memory conflict rooted in this line
     where not
@@ -269,7 +362,7 @@ end rule
 
 rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] rootIt [number]
     construct message1 [stringlit]
-        _ [+ "       - in  getAssignmentInfo it="] [quote it] [printdb]
+        _ [+ "       - in getAssignmentInfo it="] [quote it] [printdb]
 
     % match assignment_info for given assignment (ln/it)
     match [assignment_info]
@@ -280,6 +373,10 @@ rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] roo
         id [unary_expression]
         ae [assignment_expression]
         ri [repeat unary_expression]
+
+    %construct m0 [stringlit]
+    %    _ [+ "ln: "] [quote ln] [+ ", it: "] [quote it] [+ ", ailn: "] [quote ailn] [+ ", aiit: "] [quote aiit] [printdb]
+
     where
         ailn [= ln]
     where
@@ -315,6 +412,8 @@ function checkForReduction ln [srclinenumber]
             [quote ln]
             [+ ". Consider using a reduction clause (e.g. \"reduction(+:"]
             [quote ue] [+ ")\")"] [print]
+    construct m1 [unary_expression]
+        ue [addIdAsReductionId]
 end function
 
 function isReductionAssignmentOperator
@@ -348,9 +447,13 @@ rule traceBackRefdVars rootId [unary_expression] rootln [srclinenumber] rootIt [
     where not
         rootId  [assignedToIdIsRefd ue rootln]
     import assignmentInfo [repeat assignment_info]
+    %construct m0 [stringlit]
+    %    _ [+ "traceBackRefdVars, 0: "] [quote ue] [+ " : "] [quote rootId] [+ ", line "] [quote rootln] [print]
     where not
         assignmentInfo  [lineAssignsToId ue rootln rootIt]
                         [lineAssignsToArray ue rootln rootIt]
+    %construct m1 [stringlit]
+    %    _ [+ "traceBackRefdVars, 1: "] [quote ue] [+ " : "] [quote rootId] [+ ", line "] [quote rootln] [print]
 end rule
 
 % Check if the variable on the left side of assignment is on the right as well
@@ -361,12 +464,35 @@ function assignedToIdIsRefd rid [unary_expression] ln [srclinenumber]
         aid [unary_expression]
     where
         aid [= rid]
-    construct m [stringlit]
+    construct m0 [stringlit]
         _   [+ "[SUGGESTION] Variable \""] [quote rid]
             [+ "\" is assigned to and referenced in the same assignment on line "]
             [quote ln]
             [+ ". Consider using a reduction clause (e.g. \"reduction(+:"]
             [quote rid] [+ ")\")"] [print]
+    construct m1 [unary_expression]
+        aid [addIdAsReductionId]
+end function
+
+function addIdAsReductionId
+    %construct ra0 [repeat any]
+    %    _ [message "here"]
+    match [unary_expression]
+        ue [unary_expression]
+
+    deconstruct ue
+        rpido [repeat pre_increment_decrement_operator]
+        id [identifier]
+        rpe [repeat postfix_extension]
+
+    %construct ra1 [repeat any]
+    %    _ [message "here2"]
+    
+    export hasReduction [number]
+        1
+    import reductionIdentifiers [repeat identifier]
+    export reductionIdentifiers
+        reductionIdentifiers [. id]
 end function
 
 rule lineAssignsToArray ue [unary_expression] rootln [srclinenumber] rootIt [number]
