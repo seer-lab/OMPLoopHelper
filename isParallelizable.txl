@@ -28,10 +28,15 @@ define comment_for
     [attr srclinenumber] [for_statement]
 end redefine
 
-redefine block_item
-    ...
-    | [comment]
-end redefine
+%redefine declaration_or_statement
+%    ...
+%    | [comment]
+%end redefine
+
+%redefine block_item
+%    ...
+%    | [comment]
+%end redefine
 
 redefine for_statement
     ...
@@ -195,7 +200,7 @@ function generatePragma
         _ [+ ""] [addReductionParameter]
 
     construct m1 [stringlit]
-        _ [+ "[SUGGESTED PRAGMA PARAMETERS] #pragma omp parallel for"] [addReductionParameter] [addCollapseParameter] [print]
+        _ [+ "[SUGGESTION] Use these parameters: #pragma omp parallel for"] [addReductionParameter] [addCollapseParameter] [print]
 
     construct m2 [stringlit]
         _ [+ "collapse: "] [quote collapse] [+ ", hasReduction: "] [quote hasReduction] [+ ", reductionIdentifiers: "] [quote reductionIdentifiers] [printdb]
