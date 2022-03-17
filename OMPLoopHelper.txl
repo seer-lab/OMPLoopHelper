@@ -5,13 +5,27 @@
 % 2. check that loop is pragma-compatible (structured block)
 % 3. check for collapse pragma compatibility
 % 4. check for memory conflict with recursive method
+% 5. generate suggested omp pragma parameters
 
-% Usage instructions:
-% 1. have c code, with at least one for loop
-% 2. before the for loop you want to test, add this comment: //@omp-analysis=true
-% 3. run                                    : txl isParallelizable.txl [c code filepath] -comment
-%   - without full program output (Linux)   : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null
-%   - with debugging messages               : txl isParallelizable.txl [c code filepath] -comment -q -o /dev/null - -db
+% Usage Instructions:
+% 1. Have c code, with at least one for loop
+% 2. Add this comment immediately before the loop(s) you want to be analyzed: //@omp-analysis=true
+% 3. Run compiled program: ./OMPLoopHelper.x <c code filepath>
+
+% Development/Interpreter Instructions:
+% - Run program with interpreter: txl OMPLoopHelper.txl <c code filepath> -comment -q
+
+% Command line arguments
+% Argument                  | Flag      | Info
+% --------------------------|-----------|-----------
+% Verbose                   | - v       | Gives more information on suggested pragma parameters
+% Debug (development)       | - db      | For development purposes. Use to show TXL program debugging messages. 
+%                           |           | You can add new debug messages with [printdb] and [messagedb] functions.
+% Both (verbose and debug)  | - v db    |
+
+% Tests:
+% - Run automated tests: python3 runTests.py
+% - Include individual test output: python3 runTests.py -v
 
 
 %_____________ Include grammar definitions _____________
@@ -56,26 +70,55 @@ define assignment_info
 end define
 
 
-%_____________ Debugging methods: print/message only if "-db" flag is given _____________
+%_____________ Debug and Verbose Methods: print/message only if flags are given _____________
+
+% print if - db flag is given
 function printdb
     match [stringlit]
         s [stringlit]
     import TXLargs [repeat stringlit]
     deconstruct * TXLargs
-        "-db"
+        "db"
         moreOptions [repeat stringlit]
-    construct m1 [stringlit]
+    construct m [stringlit]
         s [print]
 end function
 
+% message if - db flag is given
 function messagedb s [stringlit]
     replace [any]
         a [any]
     import TXLargs [repeat stringlit]
     deconstruct * TXLargs
-        "-db"
+        "db"
         moreOptions [repeat stringlit]
-    construct m1 [stringlit]
+    construct m [stringlit]
+        s [print]
+    by
+        a
+end function
+
+% print if - v flag is given
+function printv
+    match [stringlit]
+        s [stringlit]
+    import TXLargs [repeat stringlit]
+    deconstruct * TXLargs
+        "v"
+        moreOptions [repeat stringlit]
+    construct m [stringlit]
+        s [print]
+end function
+
+% message if - v flag is given
+function messagev s [stringlit]
+    replace [any]
+        a [any]
+    import TXLargs [repeat stringlit]
+    deconstruct * TXLargs
+        "v"
+        moreOptions [repeat stringlit]
+    construct m [stringlit]
         s [print]
     by
         a
@@ -87,8 +130,10 @@ end function
 function main
     replace [program]
         p [program]
-    by
+    construct pr [program]
         p [checkForParallel]
+    by
+        _
 end function
 
 
@@ -101,8 +146,6 @@ rule checkForParallel
     export assignedToElements [repeat unary_expression]
         _
     export assignedToIdentifiers [repeat unary_expression]
-        _
-    export printedIdentifiers [repeat unary_expression]
         _
     export assignmentInfo [repeat assignment_info]
         _
@@ -172,13 +215,13 @@ rule checkForParallel
     construct m3 [repeat any]
         _ [printAssignmentInfo] % print assigned to info in db mode
     where
-        b [checkTheresNoMemoryConflict] %[isReferencedIdentifierAssignedTo]
+        b [checkTheresNoMemoryConflict]
     construct m4 [repeat any]
         _ [messagedb "Loop passed memory-conflict test (step 4)"]
 
+    % print pragma/parameters suggestion
     construct m5 [repeat any]
         _ [generatePragma]
-
 
     % replace with original comment-for-loop (no replacement yet), print success message
     by
@@ -252,7 +295,7 @@ function printCollapseInfo
     where
         collapse [> 0]
     construct canBeCollapsedMessage [stringlit]
-        _ [+ "[SUGGESTION] Use the collapse construct when parallelizing this for loop: collapse("] [quote collapse] [+ ")"] [print]
+        _ [+ "[SUGGESTION] Use the collapse construct when parallelizing this for loop: collapse("] [quote collapse] [+ ")"] [printv]
 end function
 
 rule containsForLoop
@@ -374,9 +417,6 @@ rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] roo
         ae [assignment_expression]
         ri [repeat unary_expression]
 
-    %construct m0 [stringlit]
-    %    _ [+ "ln: "] [quote ln] [+ ", it: "] [quote it] [+ ", ailn: "] [quote ailn] [+ ", aiit: "] [quote aiit] [printdb]
-
     where
         ailn [= ln]
     where
@@ -411,7 +451,7 @@ function checkForReduction ln [srclinenumber]
             [+ "\" is assigned to and referenced in the same assignment on line "]
             [quote ln]
             [+ ". Consider using a reduction clause (e.g. \"reduction(+:"]
-            [quote ue] [+ ")\")"] [print]
+            [quote ue] [+ ")\")"] [printv]
     construct m1 [unary_expression]
         ue [addIdAsReductionId]
 end function
@@ -447,13 +487,10 @@ rule traceBackRefdVars rootId [unary_expression] rootln [srclinenumber] rootIt [
     where not
         rootId  [assignedToIdIsRefd ue rootln]
     import assignmentInfo [repeat assignment_info]
-    %construct m0 [stringlit]
-    %    _ [+ "traceBackRefdVars, 0: "] [quote ue] [+ " : "] [quote rootId] [+ ", line "] [quote rootln] [print]
+    
     where not
         assignmentInfo  [lineAssignsToId ue rootln rootIt]
                         [lineAssignsToArray ue rootln rootIt]
-    %construct m1 [stringlit]
-    %    _ [+ "traceBackRefdVars, 1: "] [quote ue] [+ " : "] [quote rootId] [+ ", line "] [quote rootln] [print]
 end rule
 
 % Check if the variable on the left side of assignment is on the right as well
@@ -475,8 +512,6 @@ function assignedToIdIsRefd rid [unary_expression] ln [srclinenumber]
 end function
 
 function addIdAsReductionId
-    %construct ra0 [repeat any]
-    %    _ [message "here"]
     match [unary_expression]
         ue [unary_expression]
 
@@ -484,9 +519,6 @@ function addIdAsReductionId
         rpido [repeat pre_increment_decrement_operator]
         id [identifier]
         rpe [repeat postfix_extension]
-
-    %construct ra1 [repeat any]
-    %    _ [message "here2"]
     
     export hasReduction [number]
         1
@@ -657,84 +689,7 @@ rule isEarlierAssignment rootln [srclinenumber] id [unary_expression] it [number
 end rule
 
 
-%_____________ Check referenced (Old memory-conflict detection) _____________
-
-% check block for referenced elements which are assigned to
-function isReferencedIdentifierAssignedTo
-    skipping [subscript_extension]
-    match $ [repeat block_item]
-        b [repeat block_item]
-    where
-        b   [isAssignedTo]
-            [isAssignedTo_AssignmentReference]
-end function
-
-% subrule: check for referenced elements which are assigned to in block
-rule isAssignedTo
-    match $ [block_item]
-        ln [srclinenumber] ds [declaration_or_statement]
-    deconstruct not ds % assignment expressions are checked in other subrule
-        ce [conditional_expression] aae [assign_assignment_expression] ';
-    where all
-        ds [identifierIsAssignedTo]
-end rule
-
-% subrule: check assignment expressions for referenced elements which are assigned to
-rule isAssignedTo_AssignmentReference
-    skipping [subscript_extension]
-    match $ [assignment_expression]
-        ae [assignment_expression]
-    deconstruct ae
-        ce [conditional_expression] aae [assign_assignment_expression]
-    where
-        aae [identifierIsAssignedTo] %[elementIsAssignedTo]
-    %construct message [stringlit]
-    %    _ [+ "    on line: "] [quote ae] [print] [message ""] [message ""]
-end rule
-
-% check if element is in list of unary expressions
-rule elementIsAssignedTo
-    import assignedToElements [repeat unary_expression]
-    match $ [unary_expression]
-        e [unary_expression]
-    where
-        assignedToElements [isInRepeat e]
-end rule
-
-rule isInRepeat e [unary_expression]
-    skipping [unary_expression] % so expressions like a[i] don't match i
-    match * [unary_expression]
-        e1 [unary_expression]
-    where
-        e1 [= e]
-end rule
-
-rule identifierIsAssignedTo
-    import assignedToIdentifiers [repeat unary_expression]
-    import printedIdentifiers [repeat unary_expression]
-    match $ [unary_expression]
-        id [unary_expression]
-    where
-        assignedToIdentifiers [isInRepeatID id]
-    % don't match if this id has already been caught
-    where not
-        printedIdentifiers [isInRepeatID id]
-    export printedIdentifiers
-        printedIdentifiers [. id]
-    %construct message [stringlit]
-    %    _ [quote printedIdentifiers] [print]
-    construct message [stringlit]
-        _   [+ "[WARNING] This loop may need to be refactored before being parallelized. A location is written to and read in different iterations: "]
-            [quote id]
-            [print]
-end rule
-
-rule isInRepeatID id [unary_expression]
-    match * [unary_expression]
-        id1 [unary_expression]
-    where
-        id1 [= id]
-end rule
+%_____________ Shared variables detection _____________
 
 
 
@@ -766,7 +721,7 @@ function addAssignmentInfo ln [srclinenumber]
         ae [assignment_expression]
     deconstruct ae
         ue [unary_expression] aae [assign_assignment_expression]
-    %construct assignedToIds [repeat unary_expression]
+
     deconstruct ue
         pe [primary_expression] pte [repeat postfix_extension]
     deconstruct pe
@@ -848,8 +803,6 @@ function addAssignedToElement
     import assignedToElements [repeat unary_expression]
     match [unary_expression]
         newEntry [unary_expression]
-    %construct message1 [stringlit]
-    %    _ [+ "    found assigned-to element: "] [quote newEntry] [print]
     construct newAssignedToElements [repeat unary_expression]
         assignedToElements [. newEntry]
     construct none [unary_expression]
@@ -866,8 +819,6 @@ function addAssignedToIdentifier
         pe [primary_expression] pte [repeat postfix_extension]
     deconstruct pe
         newEntry [identifier]
-    %construct message1 [stringlit]
-    %    _ [+ "    found assigned-to identifier: "] [quote newEntry] [print]
     export assignedToIdentifiers
         assignedToIdentifiers [. ue]
 end function
