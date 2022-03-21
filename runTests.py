@@ -11,7 +11,7 @@ if(len(sys.argv) > 1 and sys.argv[1] == "-v"):
 
 failDir = 'tests/fail/'
 passDir = 'tests/pass/'
-txlCommand = ['txl', 'isParallelizable.txl', '-q', '-o', '/dev/null']
+txlCommand = ['txl', 'OMPLoopHelper.txl', '-q', '-o', '/dev/null']
 
 greenColorCode = '\x1b[1;32m'
 redColorCode = '\x1b[1;31m'
@@ -39,7 +39,13 @@ for i in failFiles:
     lines = str(result.stderr).split('\n')
 
     if len(lines) > 2:
-        if(not lines[-2][:len(successString)] == successString):
+        testPass = False
+        for line in lines:
+            if(line[:len(successString)] == successString):
+                testPass = True
+                break
+
+        if(not testPass):
             failTests.append(greenColorCode + 'Pass' + endCode)
         else:
             failTests.append(redColorCode + 'Fail' + endCode)
@@ -57,7 +63,13 @@ for i in passFiles:
     lines = str(result.stderr).split('\n')
 
     if len(lines) > 2:
-        if(lines[-2][:len(successString)] == successString):
+        testPass = False
+        for line in lines:
+            if(line[:len(successString)] == successString):
+                testPass = True
+                break
+
+        if(testPass):
             passTests.append(greenColorCode + 'Pass' + endCode)
         else:
             passTests.append(redColorCode + 'Fail' + endCode)

@@ -69,6 +69,20 @@ define assignment_info
     [repeat unary_expression] [NL]  % referenced identifiers
 end define
 
+% operators that can have reductions
+define reduction_operator
+    '+ | '- | '* | '& | '| | '^ | '&& | '||
+end define
+
+define reduction_assignment_operator
+    '+= | '-= | '*= | '&= | '|= | '^=
+end define
+
+redefine assignment_operator
+    [reduction_assignment_operator]
+    | '= | '/= | '<<= | '>>=
+end redefine
+
 
 %_____________ Debug and Verbose Methods: print/message only if flags are given _____________
 
@@ -142,7 +156,7 @@ end function
 % check if for loop can be parallelized
 rule checkForParallel
 
-    % global vars used to check if referenced elements are assigned to
+    % global vars: used to gather loop information for output
     export assignedToElements [repeat unary_expression]
         _
     export assignedToIdentifiers [repeat unary_expression]
@@ -163,9 +177,12 @@ rule checkForParallel
         _
     export collapse [number]
         0
-    export hasReduction [number]
-        0
-    export reductionIdentifiers [repeat identifier]
+    % reduction suggestions
+    export plusReductionIdentifiers [list identifier]
+        _
+    export subReductionIdentifiers [list identifier]
+        _
+    export mulReductionIdentifiers [list identifier]
         _
 
 
@@ -191,7 +208,8 @@ rule checkForParallel
         d
     construct m00 [stringlit]
         _ [+ "iterator: "] [quote d] [printdb]
-    deconstruct ss % TODO: support single-line-block for loops
+    % TODO: support single-line-block for loops
+    deconstruct ss 
         '{ b [repeat block_item] '}
 
 
@@ -219,22 +237,32 @@ rule checkForParallel
     construct m4 [repeat any]
         _ [messagedb "Loop passed memory-conflict test (step 4)"]
 
+    construct noParallelizationProblemMessage [repeat any]
+        _ [message "[INFO] No parallelization problems found with this loop."]
+
     % print pragma/parameters suggestion
     construct m5 [repeat any]
-        _ [generatePragma]
+        _ [generatePragma f]
+
+    % debug reduction suggestion lists
+    import plusReductionIdentifiers
+    import subReductionIdentifiers
+    import mulReductionIdentifiers
+    construct m6 [stringlit]
+        _   [+ "plusReductionIdentifiers: "] [quote plusReductionIdentifiers]
+            [+ ", subReductionIdentifiers: "] [quote subReductionIdentifiers]
+            [+ ", mulReductionIdentifiers: "] [quote mulReductionIdentifiers] [printdb]
 
     % replace with original comment-for-loop (no replacement yet), print success message
     by
-        cf [message "[INFO] No parallelization problems found with this loop."]
+        cf
 end rule
 
 
 
 %_____________ Generate suggested pragma parameters _____________
-function generatePragma
+function generatePragma fs [for_statement]
     import collapse [number]
-    import hasReduction [number]
-    import reductionIdentifiers [repeat identifier]
 
     match [repeat any]
         ra [repeat any]
@@ -242,25 +270,53 @@ function generatePragma
     construct reduction [stringlit]
         _ [+ ""] [addReductionParameter]
 
-    construct m1 [stringlit]
-        _ [+ "[SUGGESTION] Use these parameters: #pragma omp parallel for"] [addReductionParameter] [addCollapseParameter] [print]
+    construct m0 [stringlit]
+        _ [message "[SUGGESTION] Use these parameters:"] [+ "#pragma omp parallel for"] [addReductionParameter] [addCollapseParameter] [print] [message fs]
+    %construct m1 [stringlit]
+    %    _ [quote fs] [print]
 
     construct m2 [stringlit]
-        _ [+ "collapse: "] [quote collapse] [+ ", hasReduction: "] [quote hasReduction] [+ ", reductionIdentifiers: "] [quote reductionIdentifiers] [printdb]
+        _ [+ "collapse: "] [quote collapse] [printdb]
 
 end function
 
 function addReductionParameter
     replace [stringlit]
         sl [stringlit]
-    import hasReduction [number]
-    where
-        hasReduction [= 1]
-    import reductionIdentifiers [repeat identifier]
-    construct reductionParameter [stringlit]
-        _ [+ " reduction(+:"] [quote reductionIdentifiers] [+ ")"]
+    construct reductionClauses [stringlit]
+        _ [addAdditionReduction] [addSubtractionReduction] [addMultiplicationReduction]
     by
-        sl [+ reductionParameter]
+        sl [+ reductionClauses]
+end function
+
+function addAdditionReduction
+    replace [stringlit]
+        s [stringlit]
+    import plusReductionIdentifiers [list identifier]
+    deconstruct plusReductionIdentifiers % at least one id
+        id [identifier] ', ids [list identifier]
+    by
+        s [+ " reduction(+:"] [quote plusReductionIdentifiers] [+ ")"]
+end function
+
+function addSubtractionReduction
+    replace [stringlit]
+        s [stringlit]
+    import subReductionIdentifiers [list identifier]
+    deconstruct subReductionIdentifiers % at least one id
+        id [identifier] ', ids [list identifier]
+    by
+        s [+ " reduction(-:"] [quote subReductionIdentifiers] [+ ")"]
+end function
+
+function addMultiplicationReduction
+    replace [stringlit]
+        s [stringlit]
+    import mulReductionIdentifiers [list identifier]
+    deconstruct mulReductionIdentifiers % at least one id
+        id [identifier] ', ids [list identifier]
+    by
+        s [+ " reduction(*:"] [quote mulReductionIdentifiers] [+ ")"]
 end function
 
 function addCollapseParameter
@@ -371,8 +427,6 @@ rule checkAssignmentForMemoryConflict
     % check that this block item is an assignment
     deconstruct ds
         ae [assignment_expression] ';
-    %where
-    %    assignmentInfo [assignmentInfoHasLineAndAINum ln checkAINum]
     construct m0 [stringlit]
         _ [+ "line "] [quote ln] [+ " has an assignment: "] [quote ds] [printdb]
 
@@ -426,106 +480,20 @@ rule getAssignmentInfo ln [srclinenumber] rootln [srclinenumber] it [number] roo
     construct message2 [stringlit]
         _ [+ "       - references: "] [quote ri] [printdb]
 
-    construct reductionCheck [assignment_expression]
-        ae [checkForReduction ailn]
+    % reduction check for assignment operators (+=)
+    construct reductionCheckA [assignment_expression]
+        ae [checkForReductionAssignOp ailn id]
+    % reduction check for other operators (+, *)
+    construct reductionCheckB [assignment_info]
+        ai [checkForReduction]
 
     % check referenced variables
     where
-        ri [traceBackRefdVars id rootln rootIt]
+        ri [traceBackRefdVars id rootln rootIt ae aiit]
 
     construct message3 [stringlit]
         _ [+ " passed getAssignmentInfo"] [printdb]
 end rule
-
-function checkForReduction ln [srclinenumber]
-    match [assignment_expression]
-        ae [assignment_expression]
-    deconstruct ae
-        ue [unary_expression] aae [assign_assignment_expression]
-    deconstruct aae
-        ao [assignment_operator] ae1 [assignment_expression]
-    where
-        ao [isReductionAssignmentOperator]
-    construct m [stringlit]
-        _   [+ "[SUGGESTION] Variable \""] [quote ue]
-            [+ "\" is assigned to and referenced in the same assignment on line "]
-            [quote ln]
-            [+ ". Consider using a reduction clause (e.g. \"reduction(+:"]
-            [quote ue] [+ ")\")"] [printv]
-    construct m1 [unary_expression]
-        ue [addIdAsReductionId]
-end function
-
-function isReductionAssignmentOperator
-    match [assignment_operator]
-        ao [assignment_operator]
-    construct ao_add [assignment_operator]
-        '+=
-    construct ao_sub [assignment_operator]
-        '-=
-    construct ao_mul [assignment_operator]
-        '*=
-    construct ao_and [assignment_operator]
-        '&=
-    construct ao_ior [assignment_operator]
-        '|=
-    construct ao_eor [assignment_operator]
-        '^=
-    where
-        ao  [= ao_add]
-            [= ao_sub]
-            [= ao_mul]
-            [= ao_and]
-            [= ao_ior]
-            [= ao_eor]
-end function
-
-% Check, for each given var, if
-rule traceBackRefdVars rootId [unary_expression] rootln [srclinenumber] rootIt [number]
-    match $ [unary_expression]
-        ue [unary_expression]
-    where not
-        rootId  [assignedToIdIsRefd ue rootln]
-    import assignmentInfo [repeat assignment_info]
-    
-    where not
-        assignmentInfo  [lineAssignsToId ue rootln rootIt]
-                        [lineAssignsToArray ue rootln rootIt]
-end rule
-
-% Check if the variable on the left side of assignment is on the right as well
-% (or if a special assignment operator is used (+=, *=, /=, etc.))
-% If it is, give user a suggestion to use a reduction clause
-function assignedToIdIsRefd rid [unary_expression] ln [srclinenumber]
-    match [unary_expression]
-        aid [unary_expression]
-    where
-        aid [= rid]
-    construct m0 [stringlit]
-        _   [+ "[SUGGESTION] Variable \""] [quote rid]
-            [+ "\" is assigned to and referenced in the same assignment on line "]
-            [quote ln]
-            [+ ". Consider using a reduction clause (e.g. \"reduction(+:"]
-            [quote rid] [+ ")\")"] [print]
-    construct m1 [unary_expression]
-        aid [addIdAsReductionId]
-end function
-
-function addIdAsReductionId
-    match [unary_expression]
-        ue [unary_expression]
-
-    deconstruct ue
-        rpido [repeat pre_increment_decrement_operator]
-        id [identifier]
-        rpe [repeat postfix_extension]
-    
-    export hasReduction [number]
-        1
-    import reductionIdentifiers [repeat identifier]
-    export reductionIdentifiers
-        reductionIdentifiers [. id]
-end function
 
 rule lineAssignsToArray ue [unary_expression] rootln [srclinenumber] rootIt [number]
 
@@ -687,6 +655,220 @@ rule isEarlierAssignment rootln [srclinenumber] id [unary_expression] it [number
     where
         aiid [= id]
 end rule
+
+
+%_____________ Reduction Clause Suggestion Detection _____________
+
+% Check for reduction ability in assignments in the form: a += <...>;
+function checkForReductionAssignOp ln [srclinenumber] aid [unary_expression]
+    match [assignment_expression]
+        ae [assignment_expression]
+    
+    deconstruct ae
+        ue [unary_expression] aae [assign_assignment_expression]
+    deconstruct aae
+        ao [assignment_operator] ae1 [assignment_expression]
+
+    % assignment operator is like +=, -=, etc.
+    deconstruct ao
+        rao [reduction_assignment_operator]
+
+    % scalar variable only
+    deconstruct ue
+        id [identifier]
+    
+    %construct m0 [reduction_assignment_operator]
+    %    rao [debug]
+
+    construct m [stringlit]
+        _   [+ "[SUGGESTION] Variable \""] [quote aid]
+            [+ "\" is assigned to and referenced in the same assignment on line "]
+            [quote ln]
+            [+ ". Consider using a reduction clause (e.g. \"reduction(+:"]
+            [quote aid] [+ ")\")"] [printv]
+    construct ao1 [assignment_operator]
+        ao [addAOInfo id]
+end function
+
+function addAOInfo id [identifier]
+    match [assignment_operator]
+        ao [assignment_operator]
+
+    construct ao2 [assignment_operator]
+        ao  [recordAddReduction id]
+            [recordSubReduction id]
+            [recordMulReduction id]
+end function
+
+function recordAddReduction id [identifier]
+    match [assignment_operator]
+        '+=
+    import plusReductionIdentifiers [list identifier]
+    where not
+        plusReductionIdentifiers [idInList id]
+    export plusReductionIdentifiers
+        plusReductionIdentifiers [, id]
+end function
+
+function recordSubReduction id [identifier]
+    match [assignment_operator]
+        '-=
+    import subReductionIdentifiers [list identifier]
+    where not
+        subReductionIdentifiers [idInList id]
+    export subReductionIdentifiers
+        subReductionIdentifiers [, id]
+end function
+
+function recordMulReduction id [identifier]
+    match [assignment_operator]
+        '*=
+    import mulReductionIdentifiers [list identifier]
+    where not
+        mulReductionIdentifiers [idInList id]
+    export mulReductionIdentifiers
+        mulReductionIdentifiers [, id]
+end function
+
+function idInList id [identifier]
+    match [list identifier]
+        l [list identifier]
+    deconstruct * l
+        list_id [identifier]
+    where
+        list_id [= id]
+end function
+
+% Check, for each given var, if
+rule traceBackRefdVars rootId [unary_expression] rootln [srclinenumber] rootIt [number] ae [assignment_expression] assignN [number]
+    match $ [unary_expression]
+        ue [unary_expression]
+    where not
+        rootId  [assignedToIdIsRefd ue rootln ae]
+    import assignmentInfo [repeat assignment_info]
+    
+    where not
+        assignmentInfo  [lineAssignsToId ue rootln rootIt]
+                        [lineAssignsToArray ue rootln rootIt]
+end rule
+
+% Check if the variable on the left side of assignment is on the right as well
+% (or if a special assignment operator is used (+=, *=, etc.))
+% If it is, give user a suggestion to use a reduction clause
+function assignedToIdIsRefd rid [unary_expression] ln [srclinenumber] ae [assignment_expression]
+    match [unary_expression]
+        aid [unary_expression]
+    where
+        aid [= rid]
+end function
+
+function checkForReduction
+    match [assignment_info]
+        ai [assignment_info]
+    deconstruct ai
+        ailn [srclinenumber]
+        aiit [number]
+        id [unary_expression]
+        ae [assignment_expression]
+        ri [repeat unary_expression]
+
+    deconstruct ae
+        ce0 [conditional_expression] ao [assignment_operator] ce1 [conditional_expression]
+
+    construct ce2 [conditional_expression]
+        ce1 [getReductionOperator id ailn]
+end function
+
+function getReductionOperator ue [unary_expression] ln [srclinenumber]
+    match [conditional_expression]
+        ae [additive_expression]
+    % only scalar variables
+    deconstruct ue
+        id [identifier]
+    construct ae1 [additive_expression]
+        ae  [getAdditiveOperator ue ln id]
+            [getMultiplicativeOperator ue ln id]
+end function
+
+function getAdditiveOperator ue [unary_expression] ln [srclinenumber] id [identifier]
+    match [additive_expression]
+        ae [additive_expression]
+    %construct m2 [additive_expression]
+    %    ae [debug]
+    deconstruct ae
+        me [multiplicative_expression] rasme [repeat add_subtract_multiplicative_expression]
+    deconstruct not me
+        ce [cast_expression] mdce [multipy_divide_cast_expression] rmdce [repeat multipy_divide_cast_expression]
+    deconstruct rasme
+        asme [add_subtract_multiplicative_expression] rasme2 [repeat add_subtract_multiplicative_expression]
+    deconstruct asme
+        ao [additive_operator] me1 [multiplicative_expression]
+    deconstruct me
+        exp_id [identifier]
+    where   
+        exp_id [= id]
+    
+    construct m0 [stringlit]
+        _   [+ "[SUGGESTION] Variable \""] [quote ue]
+            [+ "\" is assigned to and referenced in the same assignment on line "]
+            [quote ln]
+            [+ ". Consider using a reduction clause (e.g. \"reduction("] [quote ao]
+            [+ ":"] [quote ue] [+ ")\")"] [printv]
+    
+    construct m2 [additive_operator]
+        ao  [recordAddOperator id]
+            [recordSubOperator id]
+end function
+
+function recordAddOperator id [identifier]
+    match [additive_operator]
+        '+
+    import plusReductionIdentifiers [list identifier]
+    where not
+        plusReductionIdentifiers [idInList id]
+    export plusReductionIdentifiers
+        plusReductionIdentifiers [, id]
+end function
+
+function recordSubOperator id [identifier]
+    match [additive_operator]
+        '-
+    import subReductionIdentifiers [list identifier]
+    where not
+        subReductionIdentifiers [idInList id]
+    export subReductionIdentifiers
+        subReductionIdentifiers [, id]
+end function
+
+function getMultiplicativeOperator ue [unary_expression] ln [srclinenumber] id [identifier]
+    match [additive_expression]
+        ae [additive_expression]
+    deconstruct ae
+        me [multiplicative_expression] rasme [repeat add_subtract_multiplicative_expression]
+    deconstruct me
+        ce [cast_expression] rmdce [repeat multipy_divide_cast_expression]
+    deconstruct rmdce
+        mdce [multipy_divide_cast_expression] rmdce1 [repeat multipy_divide_cast_expression]
+    deconstruct mdce
+        '* ce1 [cast_expression]
+    deconstruct ce1
+        exp_id [identifier]
+    where
+        exp_id [= id]
+
+    construct m0 [stringlit]
+        _   [+ "[SUGGESTION] Variable \""] [quote ue]
+            [+ "\" is assigned to and referenced in the same assignment on line "]
+            [quote ln]
+            [+ ". Consider using a reduction clause (e.g. \"reduction(*"]
+            [+ ":"] [quote ue] [+ ")\")"] [printv]
+
+    import mulReductionIdentifiers [list identifier]
+    where not
+        mulReductionIdentifiers [idInList id]
+    export mulReductionIdentifiers
+        mulReductionIdentifiers [, id]
+end function
 
 
 %_____________ Shared variables detection _____________

@@ -19,4 +19,14 @@ int main()
         negative_sum -= i;
         mult *= i;
     }
+
+    //@omp-analysis=true
+    for (int i = 0; i < 10; i++)
+    {
+        sum = sum + i;
+        sum2 = sum2 + i;
+        negative_sum = negative_sum - i;
+        mult = mult * i;
+        mult = mult * i;
+    }
 }
