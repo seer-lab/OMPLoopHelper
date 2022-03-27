@@ -36,10 +36,20 @@ include "C18/c-comments.grm"
 
 %_____________ Define/redefine necessary patterns _____________
 
+define inner_tag
+    _ | '!INNER
+end define
+
 % define comment_for for easier parsing of for loops preceded by annotation
+% attr stringlit - inner loop indicator - "INNER" if true
 define comment_for
     [comment] [NL]
-    [attr srclinenumber] [for_statement]
+    [attr srclinenumber] [attr inner_tag] [for_statement]
+end redefine
+
+redefine for_statement
+    ...
+    | [comment_for]
 end redefine
 
 %redefine declaration_or_statement
@@ -51,11 +61,6 @@ end redefine
 %    ...
 %    | [comment]
 %end redefine
-
-redefine for_statement
-    ...
-    | [comment_for]
-end redefine
 
 redefine block_item
     [attr srclinenumber] [declaration_or_statement]
@@ -144,10 +149,78 @@ end function
 function main
     replace [program]
         p [program]
-    construct pr [program]
-        p [checkForParallel]
+    
+    % 
+    construct p_new [program]
+        p   [markInnerLoopsInProgram]
+            [checkForParallel]
+
+    % replace with empty program to prevent printing entire program
     by
         _
+end function
+
+
+%_____________ Mark Inner Loops _____________
+
+% mark all inner loops with an attribute, so a warning can be given to user
+function markInnerLoopsInProgram
+    replace [program]
+        p [program]
+    by
+        p [markInnerLoopsInCommentFor] [markInnerLoopsInFor]
+end function
+
+rule markInnerLoopsInFor
+    replace $ [for_statement]
+        'for '( nnd [opt non_null_declaration] el [opt expression_list] ';
+            el2 [opt expression_list] soel [opt semi_opt_expression_list] ')
+            ss [sub_statement]
+    construct ss_new [sub_statement]
+        ss [markInnerLoops]
+    by
+        'for '( nnd el ';
+            el2  soel  ')
+            ss_new
+end rule
+
+rule markInnerLoopsInCommentFor
+    replace $ [comment_for]
+        c [comment]
+        ln [srclinenumber] it [inner_tag]
+        'for '( nnd [opt non_null_declaration] el [opt expression_list] ';
+            el2 [opt expression_list] soel [opt semi_opt_expression_list] ')
+            ss [sub_statement]
+    construct ss_new [sub_statement]
+        ss [markInnerLoops]
+    by
+        c
+        ln it 'for '( nnd el ';
+            el2 soel ')
+            ss_new
+end rule
+
+rule markInnerLoops
+    replace $ [comment_for]
+        '//@omp-analysis=true
+        ln [srclinenumber] fs [for_statement]
+    construct m1 [stringlit]
+        _ [+ "Found inner loop on line "] [quote ln] [+ ". Marking with inner-tag attribute."] [printdb]
+    by
+        '//@omp-analysis=true
+        ln '!INNER fs
+end rule
+
+function warnIfInnerLoop
+    match [comment_for]
+        '//@omp-analysis=true
+        ln [srclinenumber] it [inner_tag] f [for_statement]
+    construct cit [inner_tag]
+        '!INNER
+    where
+        cit [= it]
+    construct m [stringlit]
+        _ [+ "[INFO] This loop is nested inside another for-loop. Consider this loop's parent loop before parallelizing."] [print]
 end function
 
 
@@ -191,7 +264,7 @@ rule checkForParallel
         cf [comment_for]
     deconstruct cf
         '//@omp-analysis=true
-        ln [srclinenumber] f [for_statement]
+        ln [srclinenumber] it [attr inner_tag] f [for_statement]
 
 
     % deconstruct loop, export iterator
@@ -209,7 +282,7 @@ rule checkForParallel
     construct m00 [stringlit]
         _ [+ "iterator: "] [quote d] [printdb]
     % TODO: support single-line-block for loops
-    deconstruct ss 
+    deconstruct ss
         '{ b [repeat block_item] '}
 
 
@@ -240,15 +313,19 @@ rule checkForParallel
     construct noParallelizationProblemMessage [repeat any]
         _ [message "[INFO] No parallelization problems found with this loop."]
 
+    % tell user if this loop is an inner loop
+    construct m5 [comment_for]
+        cf [warnIfInnerLoop]
+
     % print pragma/parameters suggestion
-    construct m5 [repeat any]
+    construct m6 [repeat any]
         _ [generatePragma f]
 
     % debug reduction suggestion lists
     import plusReductionIdentifiers
     import subReductionIdentifiers
     import mulReductionIdentifiers
-    construct m6 [stringlit]
+    construct m7 [stringlit]
         _   [+ "plusReductionIdentifiers: "] [quote plusReductionIdentifiers]
             [+ ", subReductionIdentifiers: "] [quote subReductionIdentifiers]
             [+ ", mulReductionIdentifiers: "] [quote mulReductionIdentifiers] [printdb]
