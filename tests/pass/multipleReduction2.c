@@ -18,6 +18,7 @@ int main()
         sum2 += i;
         negative_sum -= i;
         mult *= i;
+        mult *= i;
     }
 
     //@omp-analysis=true

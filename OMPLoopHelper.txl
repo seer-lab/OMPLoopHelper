@@ -150,7 +150,6 @@ function main
     replace [program]
         p [program]
     
-    % 
     construct p_new [program]
         p   [markInnerLoopsInProgram]
             [checkForParallel]
@@ -229,6 +228,14 @@ end function
 % check if for loop can be parallelized
 rule checkForParallel
 
+    % match annotated for-loop
+    replace $ [comment_for]
+        cf [comment_for]
+    deconstruct cf
+        '//@omp-analysis=true
+        ln [srclinenumber] it [attr inner_tag] f [for_statement]
+    
+
     % global vars: used to gather loop information for output
     export assignedToElements [repeat unary_expression]
         _
@@ -259,14 +266,6 @@ rule checkForParallel
         _
 
 
-    % match annotated for-loop
-    replace $ [comment_for]
-        cf [comment_for]
-    deconstruct cf
-        '//@omp-analysis=true
-        ln [srclinenumber] it [attr inner_tag] f [for_statement]
-
-
     % deconstruct loop, export iterator
     construct m0 [stringlit]
         _ [+ "Analyzing for loop on line "] [quote ln] [+ ": "] [message ""] [print] [message f] [message ""]
@@ -279,17 +278,22 @@ rule checkForParallel
         ';
     export iterator [declarator]
         d
-    construct m00 [stringlit]
+    construct m1 [stringlit]
         _ [+ "iterator: "] [quote d] [printdb]
     % TODO: support single-line-block for loops
     deconstruct ss
         '{ b [repeat block_item] '}
 
 
+    % tell user if this loop is an inner loop
+    construct m7 [comment_for]
+        cf [warnIfInnerLoop]
+
+
     % check if sub scope is compatible for OpenMP pragmas
     where not
         b [subScopeNotCompatible]
-    construct m1 [repeat any]
+    construct m3 [repeat any]
         _ [messagedb "Loop passed pragma compatibility test (step 2)"]
 
 
@@ -301,40 +305,105 @@ rule checkForParallel
 
 
     % check for memory conflict
-    construct m2 [repeat block_item]
+    construct m4 [repeat block_item]
         b [storeAssignedToElements]
-    construct m3 [repeat any]
+    construct m5 [repeat any]
         _ [printAssignmentInfo] % print assigned to info in db mode
     where
         b [checkTheresNoMemoryConflict]
-    construct m4 [repeat any]
+    construct m6 [repeat any]
         _ [messagedb "Loop passed memory-conflict test (step 4)"]
 
     construct noParallelizationProblemMessage [repeat any]
         _ [message "[INFO] No parallelization problems found with this loop."]
 
-    % tell user if this loop is an inner loop
-    construct m5 [comment_for]
-        cf [warnIfInnerLoop]
 
     % print pragma/parameters suggestion
-    construct m6 [repeat any]
+    construct m8 [repeat any]
         _ [generatePragma f]
 
     % debug reduction suggestion lists
     import plusReductionIdentifiers
     import subReductionIdentifiers
     import mulReductionIdentifiers
-    construct m7 [stringlit]
+    construct m9 [stringlit]
         _   [+ "plusReductionIdentifiers: "] [quote plusReductionIdentifiers]
             [+ ", subReductionIdentifiers: "] [quote subReductionIdentifiers]
             [+ ", mulReductionIdentifiers: "] [quote mulReductionIdentifiers] [printdb]
 
-    % replace with original comment-for-loop (no replacement yet), print success message
+    % find and print default visibility of all variables in the loop
+    construct m2 [for_statement]
+        f [printVariableVisibilities iterator ss]
+
+    % "replace" with original comment-for-loop
     by
         cf
 end rule
 
+
+%_____________ Print visibility of variables in given loop _____________ 
+function printVariableVisibilities iterator [declarator] ss [sub_statement]
+    deconstruct iterator
+        i [identifier]
+    match $ [for_statement]
+        fs [for_statement]
+
+    construct pl [list identifier]
+        i
+    construct sl [list identifier]
+        _
+    export private_identifiers [list identifier]
+        pl
+    export shared_identifiers [list identifier]
+        sl
+
+    construct p1 [sub_statement]
+        ss [buildPrivateList] [buildSharedList]
+    
+    construct m0 [stringlit]
+        _ [+ "[INFO] Default OpenMP variable visibilities: "] [print]
+    construct m1 [stringlit]
+        _ [+ "       - Private variables: "] [quote private_identifiers] [print]
+    construct m2 [stringlit]
+        _ [+ "       - Shared variables: "] [quote shared_identifiers] [print]
+    construct m [stringlit]
+        _ [+ "       - iterator: "] [quote iterator] [printdb]
+end function
+
+rule buildPrivateList
+    match $ [declarator]
+        d [declarator]
+    deconstruct d
+        id [identifier]
+    %construct m [stringlit]
+    %    _ [+ "private: "] [quote id] [print]
+    import private_identifiers [list identifier]
+    where not
+        private_identifiers [findId id]
+    export private_identifiers
+        private_identifiers [, id]
+end rule
+
+rule buildSharedList
+    match $ [identifier]
+        id [identifier]
+    import private_identifiers [list identifier]
+    import shared_identifiers [list identifier]
+    where not
+        private_identifiers [findId id]
+    where not
+        shared_identifiers [findId id]
+    export shared_identifiers
+        shared_identifiers [, id]
+end rule
+
+rule findId id [identifier]
+    match $ [identifier]
+        i [identifier]
+    where
+        i [= id]
+end rule
+    
 
 
 %_____________ Generate suggested pragma parameters _____________
@@ -408,12 +477,15 @@ function addCollapseParameter
         sl [+ collapseParameter]
 end function
 
+
 %_____________ check if for loop is nested and can be collapsed _____________
 function canBeCollapsed
     match $ [repeat block_item]
         b [repeat block_item]
     where
         b [containsForLoop]
+    %where not
+    %    b [containsDoubleForLoop]
     where not
         b [containsNonForLoop]
     import collapse [number]
@@ -438,6 +510,12 @@ rule containsForLoop
         fs [checkNestedForLoopForCollapse]
 end rule
 
+%rule containsDoubleForLoop
+%    match $ [repeat block_item]
+%        fs0 [comment_for]
+%        fs1 [comment_for]
+%end rule
+
 function checkNestedForLoopForCollapse
     match [for_statement]
         fs [for_statement]
@@ -455,7 +533,7 @@ function containsNonForLoop
     where
         b [checkForNonForLoop]
     construct cantBeCollapsedMessage [repeat any]
-        _ [message "[INFO] This for loop cannot use the collapse construct without refactoring."]
+        _ [messagev "[INFO] This for loop cannot use the collapse construct without refactoring."]
 end function
 
 rule checkForNonForLoop
@@ -807,14 +885,21 @@ function recordMulReduction id [identifier]
         mulReductionIdentifiers [, id]
 end function
 
-function idInList id [identifier]
-    match [list identifier]
-        l [list identifier]
-    deconstruct * l
-        list_id [identifier]
-    where
-        list_id [= id]
-end function
+% TODO: test
+rule idInList id [identifier]
+    match [identifier]
+        id
+    %match [list identifier]
+    %    l [list identifier]
+    %deconstruct * l
+    %    id
+    %construct m [stringlit]
+    %    _ [+ "here, id= "] [quote id] [+ "| list= "] [quote l] [print]
+    %where
+    %    list_id [= id]
+    %construct m1 [stringlit]
+    %    _ [+ "here1, id= "] [quote id] [print]
+end rule
 
 % Check, for each given var, if
 rule traceBackRefdVars rootId [unary_expression] rootln [srclinenumber] rootIt [number] ae [assignment_expression] assignN [number]
