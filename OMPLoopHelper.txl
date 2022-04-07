@@ -32,6 +32,7 @@
 %_____________ Include grammar definitions _____________
 % Source: https://www.txl.ca/txl-resources.html
 include "C18/c.grm"
+include "C18/bom.grm"
 include "C18/c-comments.grm"
 
 
@@ -109,48 +110,17 @@ function main
         p [program]
     
     construct p_new [program]
-        p   [printLoops]
-            [markInnerLoopsInProgram]
+        p   [markInnerLoopsInProgram]
             [checkForParallel]
-            
 
     construct m000 [stringlit]
         _ [+ "in main, program:"] [print]
 
-    %construct m001 [stringlit]
-    %    _ [quote p] [print]
-
-    % replace with empty program to prevent printing entire program
+    % replace with empty program to avoid printing entire program
     by
         _
 end function
 
-rule printLoops
-    match $ [comment_for]
-        cf [comment_for]
-    deconstruct cf
-        c [comment]
-        ln [attr srclinenumber] it [attr inner_tag] fs [for_statement]
-    where
-        c [containsAnnotation]
-    %construct f [comment]
-    %    c [print] [message ""]
-end rule
-
-function containsAnnotation
-    match $ [comment]
-        c [comment]
-    construct c0 [comment]
-        '//@omp-analysis=true
-    construct m [comment]
-        c [message "matched:"] [debug]
-    construct m1 [comment]
-        c0 [message "constructed:"] [debug]
-    where
-        c [= c0]
-    construct m0 [stringlit]
-        _ [+ "passed check, comments match"] [print]
-end function
 
 
 %_____________ Main parallelizable-check rule _____________
@@ -161,19 +131,6 @@ rule checkForParallel
     % match annotated for-loop
     replace $ [comment_for]
         cf [comment_for]
-    construct m000 [stringlit]
-        _ [+ "matched comment_for"] [print]
-    deconstruct cf
-        c [comment]
-        ln0 [srclinenumber] it0 [attr inner_tag] f0 [for_statement]
-    construct m001 [stringlit]
-        _ [+ "matched comment:"] [quote c] [+ "_"] [print]
-    construct c0 [comment]
-        '//@omp-analysis=true
-    deconstruct c
-        '//@omp-analysis=true
-    construct m002 [stringlit]
-        _ [+ "matched //@omp-analysis=true"] [print]
     deconstruct cf
         '//@omp-analysis=true
         ln [srclinenumber] it [attr inner_tag] f [for_statement]
