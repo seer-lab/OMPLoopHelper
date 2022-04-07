@@ -23,7 +23,7 @@ end rule
 
 rule markInnerLoopsInCommentFor
     replace $ [comment_for]
-        c [comment]
+        aa [analysis_annotation]
         ln [srclinenumber] it [inner_tag]
         'for '( nnd [opt non_null_declaration] el [opt expression_list] ';
             el2 [opt expression_list] soel [opt semi_opt_expression_list] ')
@@ -31,7 +31,7 @@ rule markInnerLoopsInCommentFor
     construct ss_new [sub_statement]
         ss [markInnerLoops]
     by
-        c
+        aa
         ln it 'for '( nnd el ';
             el2 soel ')
             ss_new
@@ -39,18 +39,18 @@ end rule
 
 rule markInnerLoops
     replace $ [comment_for]
-        '//@omp-analysis=true
+        aa [analysis_annotation]
         ln [srclinenumber] fs [for_statement]
     construct m1 [stringlit]
         _ [+ "Found inner loop on line "] [quote ln] [+ ". Marking with inner-tag attribute."] [printdb]
     by
-        '//@omp-analysis=true
+        aa
         ln '!INNER fs
 end rule
 
 function warnIfInnerLoop
     match [comment_for]
-        '//@omp-analysis=true
+        aa [analysis_annotation]
         ln [srclinenumber] it [inner_tag] f [for_statement]
     construct cit [inner_tag]
         '!INNER
