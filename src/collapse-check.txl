@@ -1,13 +1,21 @@
 %_____________ check if for loop is nested and can be collapsed _____________
 function canBeCollapsed
-    match $ [repeat block_item]
-        b [repeat block_item]
+    match $ [sub_statement]
+        ss [sub_statement]
     where
-        b [containsForLoop]
+        ss [containsForLoop]
+    %construct m [stringlit]
+    %    _ [+ " * contains for loop"] [print]
     %where not
     %    b [containsDoubleForLoop]
+    
+    %where
+    %    ss [containsOneForLoop]
     where not
-        b [containsNonForLoop]
+        ss [containsNonForLoop]
+
+    %construct m0 [stringlit]
+    %    _ [+ " * doesn't contain non-for-loop"] [print]
     import collapse [number]
     export collapse
         collapse [+ 1]
@@ -24,7 +32,7 @@ function printCollapseInfo
 end function
 
 rule containsForLoop
-    match $ [declaration_or_statement]
+    match $ [for_statement]
         fs [for_statement]
     construct m0 [for_statement]
         fs [checkNestedForLoopForCollapse]
@@ -41,17 +49,16 @@ function checkNestedForLoopForCollapse
         fs [for_statement]
     deconstruct fs
         'for '( nnd [opt non_null_declaration] el1 [opt expression_list] '; el2 [opt expression_list] soel [opt semi_opt_expression_list] ') ss [sub_statement]
-    deconstruct ss
-    '{ b [repeat block_item] '}
-    construct rbi [repeat block_item]
-        b [canBeCollapsed]
+    construct rbi [sub_statement]
+        ss [canBeCollapsed]
 end function
 
 function containsNonForLoop
-    match $ [repeat block_item]
-        b [repeat block_item]
-    where
-        b [checkForNonForLoop]
+    match $ [sub_statement]
+        ss [sub_statement]
+    where all
+        ss  [checkForNonForLoop]
+            [checkForNonForLoopSingleLine]
     construct cantBeCollapsedMessage [repeat any]
         _ [messagev "[INFO] This for loop cannot use the collapse construct without refactoring."]
 end function
@@ -67,8 +74,15 @@ rule checkForNonForLoop
         ds [containsComment]
 end rule
 
+rule checkForNonForLoopSingleLine
+    match $ [sub_statement]
+        ss [sub_statement]
+    where not
+        ss [isForLoop]
+end rule
+
 function isForLoop
-    match $ [declaration_or_statement]
+    match $ [for_statement]
         fs [for_statement]
 end function
 

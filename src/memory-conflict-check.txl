@@ -1,11 +1,11 @@
 %_____________ check for memory conflict _____________
 
 function checkTheresNoMemoryConflict
-    match $ [repeat block_item]
-        b [repeat block_item]
+    match $ [sub_statement]
+        ss [sub_statement]
 
-    construct b1 [repeat block_item]
-        b [checkAssignmentForMemoryConflict]
+    construct ss1 [sub_statement]
+        ss [checkAssignmentForMemoryConflict]
 
     % check memory conflict flag
     import loopHasMemoryConflict [number]

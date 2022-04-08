@@ -113,9 +113,6 @@ function main
         p   [markInnerLoopsInProgram]
             [checkForParallel]
 
-    construct m000 [stringlit]
-        _ [+ "in main, program:"] [print]
-
     % replace with empty program to avoid printing entire program
     by
         _
@@ -134,8 +131,8 @@ rule checkForParallel
     deconstruct cf
         '//@omp-analysis=true
         ln [srclinenumber] it [attr inner_tag] f [for_statement]
-    construct m003 [stringlit]
-        _ [+ "matched comment_for with //@omp-analysis=true"] [print]
+    %construct m003 [stringlit]
+    %    _ [+ "matched comment_for with //@omp-analysis=true"] [print]
     
 
     % global vars: used to gather loop information for output
@@ -183,8 +180,8 @@ rule checkForParallel
     construct m1 [stringlit]
         _ [+ "iterator: "] [quote d] [printdb]
     % TODO: support single-line-block for loops
-    deconstruct ss
-        '{ b [repeat block_item] '}
+    %deconstruct ss
+    %    '{ b [repeat block_item] '}
 
 
     % tell user if this loop is an inner loop
@@ -194,25 +191,25 @@ rule checkForParallel
 
     % check if sub scope is compatible for OpenMP pragmas
     where not
-        b [subScopeNotCompatible]
+        ss [subScopeNotCompatible]
     construct m3 [repeat any]
         _ [messagedb "Loop passed pragma compatibility test (step 2)"]
 
 
     % run collapse test -
-    construct collapseTest [repeat block_item]
-        b [canBeCollapsed]
+    construct collapseTest [sub_statement]
+        ss [canBeCollapsed]
     construct collapseMessage [repeat any]
         _ [printCollapseInfo]
 
 
     % check for memory conflict
-    construct m4 [repeat block_item]
-        b [storeAssignedToElements]
+    construct m4 [sub_statement]
+        ss [storeAssignedToElements]
     construct m5 [repeat any]
         _ [printAssignmentInfo] % print assigned to info in db mode
     where
-        b [checkTheresNoMemoryConflict]
+        ss [checkTheresNoMemoryConflict]
     construct m6 [repeat any]
         _ [messagedb "Loop passed memory-conflict test (step 4)"]
 
