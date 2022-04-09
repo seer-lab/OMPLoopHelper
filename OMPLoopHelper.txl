@@ -54,12 +54,23 @@ define inner_tag
     _ | '!INNER
 end define
 
+define analysis_annotation
+    '@omp-analysis=true
+    | '//@omp-analysis=true
+end define
+
+%tokens
+%    comment_annotation "//@omp-analysis=true"
+%end tokens
+
 % define comment_for for easier parsing of for loops preceded by annotation
 % attr stringlit - inner loop indicator - "INNER" if true
 define comment_for
-    [comment] [NL]
+    %[comment] [NL]
+    %[attr srclinenumber] [attr inner_tag] [for_statement] |
+    [analysis_annotation] [NL]
     [attr srclinenumber] [attr inner_tag] [for_statement]
-end redefine
+end define
 
 redefine for_statement
     ...
@@ -106,6 +117,7 @@ end redefine
 %_____________ Main: apply functions/rules to entire program _____________
 
 function main
+
     replace [program]
         p [program]
     
@@ -129,7 +141,7 @@ rule checkForParallel
     replace $ [comment_for]
         cf [comment_for]
     deconstruct cf
-        '//@omp-analysis=true
+        aa [analysis_annotation]
         ln [srclinenumber] it [attr inner_tag] f [for_statement]
     %construct m003 [stringlit]
     %    _ [+ "matched comment_for with //@omp-analysis=true"] [print]

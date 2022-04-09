@@ -6,7 +6,7 @@
 % These overrides are an approximation - only the most common placements of C++ comments are handled.  
 % Properly handling arbitrarily placed comments requires a robust grammar of somewhat greater sophistication.
 
-#pragma -comments
+%#pragma -comments
 
 % Can have comments as statements 
 redefine statement
