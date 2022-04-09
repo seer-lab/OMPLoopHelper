@@ -179,7 +179,6 @@ rule checkForParallel
         d
     construct m1 [stringlit]
         _ [+ "iterator: "] [quote d] [printdb]
-    % TODO: support single-line-block for loops
     %deconstruct ss
     %    '{ b [repeat block_item] '}
 
