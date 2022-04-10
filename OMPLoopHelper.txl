@@ -33,7 +33,7 @@
 % Source: https://www.txl.ca/txl-resources.html
 include "C18/c.grm"
 include "C18/bom.grm"
-include "C18/c-comments.grm"
+%include "C18/c-comments.grm"
 
 
 %_____________ Include project code _____________

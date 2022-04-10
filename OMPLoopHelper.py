@@ -1,23 +1,19 @@
 import sys
 import os
 import subprocess
-import re
-import time
-import datetime
-import shutil
-import argparse
-import json
-import logging
+
+import os
+dirname = os.path.abspath(os.path.dirname(__file__))
 
 # configuration
-ifdefExeLocation = './bin/ifdef.x'
-omplhExeLocation = './bin/OMPLoopHelper.x'
+ifdefExeLocation = dirname + '/bin/ifdef.x'
+omplhExeLocation = dirname + '/bin/OMPLoopHelper.x'
 
 # development config
-ifdefTxlLocation = './C18/ifdef.txl'
-omplhTxlLocation = './OMPLoopHelper.txl'
-tempFile1 = './omplhtmp1.tmp'
-tempFile2 = './omplhtmp2.tmp'
+ifdefTxlLocation = dirname + '/C18/ifdef.txl'
+omplhTxlLocation = dirname + '/OMPLoopHelper.txl'
+tempFile1 = dirname + '/omplhtmp1.tmp'
+tempFile2 = dirname + '/omplhtmp2.tmp'
 
 
 # check if txl is installed
@@ -52,7 +48,7 @@ if((compile or dev) and not txlInstalled):
     exit()
 
 # get filepath of c-code file from command line arguments
-fileIndex = arguments.index('OMPLoopHelper.py') + 1
+fileIndex = arguments.index(list(s for s in arguments if '.c' in s)[0])
 fileName = ''
 if(len(arguments) > fileIndex):
     fileName = arguments[fileIndex]
@@ -86,11 +82,11 @@ def runPipeline(p):
     subprocess.run(ifdefCommand, stderr=subprocess.PIPE)
 
     # step 2
-    f = open('./omplhtmp1.tmp', 'r')
+    f = open(tempFile1, 'r')
     fn = f.read().replace('//@omp-analysis=true', '@omp-analysis=true')
     f.close()
     # write fn to file
-    f = open('./omplhtmp2.tmp', 'w')
+    f = open(tempFile2, 'w')
     f.write(fn)
     f.close()
 
@@ -101,8 +97,8 @@ def runPipeline(p):
         print(finalOutput.stderr.decode('ascii'))
 
     # delete temporary files
-    os.remove('./omplhtmp1.tmp')
-    os.remove('./omplhtmp2.tmp')
+    os.remove(tempFile1)
+    os.remove(tempFile2)
 
     return finalOutput.stderr.decode('ascii')
 
