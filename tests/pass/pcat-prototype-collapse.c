@@ -50,20 +50,16 @@
 #define TRUE_MIN_FLUX 250.0
 #define TRUE_ALPHA 2.00
 
-// Some MACRO functions
-/* #define max(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-     _a > _b ? _a : _b; })
-#define min(a,b) \
-    ({ typeof (a) _a = (a);    \
-	typeof (b) _b = (b);   \
-        _a < _b ? _a : _b; })   */
+
+/* 
+#define max(a,b) \
+*/
 
 
 int generate_offset(int min, int max)
 {
 	// Return a random number [min, max)
+
 	int i;
 	int diff = max-min;
 	if (max>0){
@@ -428,7 +424,8 @@ int main(int argc, char *argv[])
 		// Update time only if burn in has passed.
 		if (j>NITER_BURNIN){
 			dt += (end-start);
-		}// End compute time.
+		}
+		// End compute time.
 	} // End of NITER loop
 
 	// Calculatin the time took.

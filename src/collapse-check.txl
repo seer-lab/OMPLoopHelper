@@ -70,8 +70,8 @@ rule checkForNonForLoop
         ln [srclinenumber] ds [declaration_or_statement]
     where not
         ds [isForLoop]
-    where not
-        ds [containsComment]
+    %where not
+    %    ds [containsComment]
 end rule
 
 rule checkForNonForLoopSingleLine
@@ -86,7 +86,7 @@ function isForLoop
         fs [for_statement]
 end function
 
-function containsComment
-    match $ [declaration_or_statement]
-        c [comment]
-end function
+%function containsComment
+%    match $ [declaration_or_statement]
+%        c [comment]
+%end function

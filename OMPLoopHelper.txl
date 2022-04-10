@@ -56,7 +56,7 @@ end define
 
 define analysis_annotation
     '@omp-analysis=true
-    | '//@omp-analysis=true
+    %| '//@omp-analysis=true
 end define
 
 %tokens

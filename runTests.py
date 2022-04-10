@@ -12,6 +12,7 @@ if(len(sys.argv) > 1 and sys.argv[1] == "-v"):
 failDir = 'tests/fail/'
 passDir = 'tests/pass/'
 txlCommand = ['txl', 'OMPLoopHelper.txl', '-q', '-o', '/dev/null']
+pythonCommand = ['python3', 'OMPLoopHelper.py']
 
 greenColorCode = '\x1b[1;32m'
 redColorCode = '\x1b[1;31m'
@@ -35,8 +36,8 @@ passTests = []
 # run tests
 for i in failFiles:
     fname = failDir + i
-    result = subprocess.run(txlCommand + [fname], capture_output=True, text=True)
-    lines = str(result.stderr).split('\n')
+    result = subprocess.run(pythonCommand + [fname], capture_output=True, text=True)
+    lines = str(result.stdout).split('\n')
 
     if len(lines) > 2:
         testPass = False
@@ -51,16 +52,16 @@ for i in failFiles:
             failTests.append(redColorCode + 'Fail' + endCode)
     else:
         print('Error: program output for file "' + fname + '" is empty')
-        failTests.append(False)
+        failTests.append(redColorCode + 'No Output' + endCode)
 
     if verbose:
         print(fname + ': ')
-        print(result.stderr)
+        print(result.stdout)
 
 for i in passFiles:
     fname = passDir + i
-    result = subprocess.run(txlCommand + [fname], capture_output=True, text=True)
-    lines = str(result.stderr).split('\n')
+    result = subprocess.run(pythonCommand + [fname], capture_output=True, text=True)
+    lines = str(result.stdout).split('\n')
 
     if len(lines) > 2:
         testPass = False
@@ -75,11 +76,11 @@ for i in passFiles:
             passTests.append(redColorCode + 'Fail' + endCode)
     else:
         print(redColorCode + 'Error: program output for file "' + fname + '" is empty' + endCode)
-        passTests.append(None)
+        passTests.append(redColorCode + 'No Output' + endCode)
 
     if verbose:
         print(fname + ': ')
-        print(result.stderr)
+        print(result.stdout)
 
 
 # print test results

@@ -6,12 +6,12 @@ include "../C18/c-comments.grm"
 #pragma -comments
 
 define comment_for
-    [comment] [NL]
+    [comment]
     [for_statement]
 end redefine
 
 define annotation_for
-    '@omp-analysis=true [NL]
+    '@omp-analysis=true
     [for_statement]
 end define
 
@@ -27,6 +27,13 @@ function main
     by
         p [uncomment_annotations]
 end function
+
+rule put_newline_after_comments
+    replace $ [comment]
+        c [comment]
+    by
+        c
+end rule
 
 rule uncomment_annotations
     replace [for_statement]
