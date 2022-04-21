@@ -42,11 +42,11 @@ for i in failFiles:
     if len(lines) > 2:
         testPass = False
         for line in lines:
-            if(line[:len(successString)] == successString):
+            if(line[:len(failString)] == failString):
                 testPass = True
                 break
 
-        if(not testPass):
+        if(testPass):
             failTests.append(greenColorCode + 'Pass' + endCode)
         else:
             failTests.append(redColorCode + 'Fail' + endCode)

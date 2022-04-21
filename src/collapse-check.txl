@@ -27,8 +27,10 @@ function printCollapseInfo
     import collapse [number]
     where
         collapse [> 0]
+    construct real_collapse [number]
+        collapse[+ 1]
     construct canBeCollapsedMessage [stringlit]
-        _ [+ "[SUGGESTION] Use the collapse construct when parallelizing this for loop: collapse("] [quote collapse] [+ ")"] [printv]
+        _ [+ "[SUGGESTION] Use the collapse construct when parallelizing this for loop: collapse("] [quote real_collapse] [+ ")"] [printv]
 end function
 
 rule containsForLoop

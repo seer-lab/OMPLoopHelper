@@ -63,8 +63,10 @@ function addCollapseParameter
     import collapse [number]
     where
         collapse [> 0]
+    construct real_collapse [number]
+        collapse [+ 1]
     construct collapseParameter [stringlit]
-        _ [+ " collapse("] [quote collapse] [+ ")"]
+        _ [+ " collapse("] [quote real_collapse] [+ ")"]
     by
         sl [+ collapseParameter]
 end function

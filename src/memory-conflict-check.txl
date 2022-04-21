@@ -8,9 +8,9 @@ function checkTheresNoMemoryConflict
         ss [checkAssignmentForMemoryConflict]
 
     % check memory conflict flag
-    import loopHasMemoryConflict [number]
-    where not
-        loopHasMemoryConflict [= 1]
+    %import loopHasMemoryConflict [number]
+    %where not
+    %    loopHasMemoryConflict [= 1]
 
 end function
 
@@ -235,6 +235,8 @@ function checkIfAssignAfter rootln [srclinenumber] id [unary_expression] it [num
 
     export loopHasMemoryConflict [number]
         1
+    export printLoopInfo [number]
+        0
 end function
 
 % Given an assignment index and an id, check if there is an earlier assignment to the id
@@ -250,3 +252,16 @@ rule isEarlierAssignment rootln [srclinenumber] id [unary_expression] it [number
     where
         aiid [= id]
 end rule
+
+function printNoMemoryProblemMessage
+    import printLoopInfo [number]
+    import loopHasMemoryConflict [number]
+    match [repeat any]
+        a [repeat any]
+    where
+        printLoopInfo [= 1]
+    where
+        loopHasMemoryConflict [= 0]
+    construct m [repeat any]
+        _ [message "[INFO] No parallelization problems found with this loop."]
+end function

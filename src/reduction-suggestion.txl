@@ -71,7 +71,6 @@ function recordMulReduction id [identifier]
         mulReductionIdentifiers [, id]
 end function
 
-% TODO: test
 rule idInList id [identifier]
     match [identifier]
         id

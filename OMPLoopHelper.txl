@@ -59,6 +59,20 @@ define analysis_annotation
     %| '//@omp-analysis=true
 end define
 
+define break_sensitive_statements
+    [do_statement]
+    | [for_statement]
+    | [switch_statement]
+    | [while_statement]
+end define
+
+redefine structured_statement
+	[if_statement]
+    |   [compound_statement]
+    |   [asm_statement]
+    |   [break_sensitive_statements]
+end redefine
+
 %tokens
 %    comment_annotation "//@omp-analysis=true"
 %end tokens
@@ -160,6 +174,8 @@ rule checkForParallel
         0
     export loopHasMemoryConflict [number]
         0
+    export printLoopInfo [number]
+        1
     export sharedIdentifiers [repeat identifier]
         _
     export privateIdentifiers [repeat identifier]
@@ -219,14 +235,16 @@ rule checkForParallel
         ss [storeAssignedToElements]
     construct m5 [repeat any]
         _ [printAssignmentInfo] % print assigned to info in db mode
-    where
+    construct ss1 [sub_statement]
         ss [checkTheresNoMemoryConflict]
+    import printLoopInfo
+    where 
+        printLoopInfo [= 1]
     construct m6 [repeat any]
         _ [messagedb "Loop passed memory-conflict test (step 4)"]
 
     construct noParallelizationProblemMessage [repeat any]
-        _ [message "[INFO] No parallelization problems found with this loop."]
-
+        _ [printNoMemoryProblemMessage]
 
     % print pragma/parameters suggestion
     construct m8 [repeat any]

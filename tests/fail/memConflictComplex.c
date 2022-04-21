@@ -12,9 +12,9 @@ int main(){
     //@omp-analysis=true
     for (int i = 0; i < 10; i++) {
         var = i * 10;
-        var3 = var2 + var;
-        var2 = i + var;
-        sum += var + var3;
+        var2 = var3 + var;
+        var3 = i + var;
+        sum += var + var2;
     }
 
     printf("sum: %d\n", sum);
