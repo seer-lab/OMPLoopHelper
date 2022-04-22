@@ -1,0 +1,992 @@
+## Most Recent Test Results
+
+### tests/fail/arrayConflict.c:
+
+Analyzing for loop on line 13:
+```c
+for (int i = 0; i < 10; i++) {
+    a[i] = i * 10;
+    var = i + a[i - 1];
+    sum += var;
+}
+```
+```
+[WARNING] This loop may need to be refactored before being parallelized. Array "a" is referenced on line 15 at index a[i - 1] and assigned to on line 14 at index a[i]
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int i = 0; i < 10; i++) {
+    a[i] = i * 10;
+    var = i + a[i - 1];
+    sum += var;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: a, var, sum
+```
+
+### tests/fail/fibonacci-GH.c:
+
+Analyzing for loop on line 19:
+```c
+for (i = 2; i < 10; i++) {
+    fib[i] = fib[i - 1] + fib[i - 2];
+}
+```
+```
+[WARNING] This loop may need to be refactored before being parallelized. Array "fib" is referenced on line 22 at index fib[i - 1] and assigned to on line 22 at index fib[i]
+[WARNING] This loop may need to be refactored before being parallelized. Array "fib" is referenced on line 22 at index fib[i - 2] and assigned to on line 22 at index fib[i]
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (i = 2; i < 10; i++) {
+    fib[i] = fib[i - 1] + fib[i - 2];
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: fib
+```
+
+### tests/fail/jump-statement.c:
+
+Analyzing for loop on line 14:
+```c
+for (int i = 0; i < sizeof (a) / sizeof (int); i++) {
+    sum += a[i];
+    break;
+}
+```
+```
+[WARNING] This for loop can not be parallelized. A "break" statement on line 16 makes the block non-structured.
+```
+
+### tests/fail/memConflict.c:
+
+Analyzing for loop on line 12:
+```c
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    sum += var + var2;
+    var2 = i + var;
+}
+```
+```
+[WARNING] This loop may need to be refactored before being parallelized. Identifier var2 is referenced on line 14 and assigned to on line 15
+```
+
+### tests/fail/memConflictComplex.c:
+
+Analyzing for loop on line 13:
+```c
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    var3 = var2 + var;
+    var2 = i + var;
+    sum += var + var3;
+}
+```
+```
+[WARNING] This loop may need to be refactored before being parallelized. Identifier var2 is referenced on line 15 and assigned to on line 16
+```
+
+### tests/fail/memConflictWithMultipleAssignmentsPerLine.c:
+
+Analyzing for loop on line 12:
+```c
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    sum += var + var2;
+    var2 = i + var;
+}
+```
+```
+[WARNING] This loop may need to be refactored before being parallelized. Identifier var2 is referenced on line 13 and assigned to on line 13
+```
+
+### tests/fail/test-f.c:
+
+Analyzing for loop on line 15:
+```c
+for (int i = 0; i < sizeof (a) / sizeof (int); i++) {
+    sum += sum2 + a[i - 1];
+    sum2 += a[i];
+}
+```
+```
+[WARNING] This loop may need to be refactored before being parallelized. Identifier sum2 is referenced on line 16 and assigned to on line 17
+```
+
+### tests/fail/twolist.c:
+
+Analyzing for loop on line 10:
+```c
+for (int i = 1; i < 20; i++) {
+    A[i] = B[i] - A[i - 1];
+}
+```
+```
+[WARNING] This loop may need to be refactored before being parallelized. Array "A" is referenced on line 11 at index A[i - 1] and assigned to on line 11 at index A[i]
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (int i = 1; i < 20; i++) {
+    A[i] = B[i] - A[i - 1];
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: A, B
+```
+
+### tests/pass/arrayConflict.c:
+
+Analyzing for loop on line 13:
+```c
+for (int i = 0; i < 10; i++) {
+    var = a[i] * 10;
+    a[i] = i + var;
+    sum += var + a[i];
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int i = 0; i < 10; i++) {
+    var = a[i] * 10;
+    a[i] = i + var;
+    sum += var + a[i];
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: var, a, sum
+```
+
+### tests/pass/circularReference.c:
+
+Analyzing for loop on line 13:
+```c
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    var2 = i + var;
+    var3 = var2 + var;
+    var2 = var3 + var;
+    sum += var + var3;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    var2 = i + var;
+    var3 = var2 + var;
+    var2 = var3 + var;
+    sum += var + var3;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: var, var2, var3, sum
+```
+
+### tests/pass/collapse-fail.c:
+
+Analyzing for loop on line 19:
+```c
+for (i = 0; i < 10; i++) {
+    for (j = 0; j < 10; j++) {
+        result[i][j] = i * j;
+        printf ("Index [%d,%d] = %f \n", i, j, result[i][j]);
+    }
+    printf ("");
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for collapse(2)
+for (i = 0; i < 10; i++) {
+    for (j = 0; j < 10; j++) {
+        result[i][j] = i * j;
+        printf ("Index [%d,%d] = %f \n", i, j, result[i][j]);
+    }
+    printf ("");
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, j
+       - Shared variables: result, printf
+```
+
+### tests/pass/collapse.c:
+
+Analyzing for loop on line 23:
+```c
+for (i = 0; i < NUM_THREADS; i++) {
+    for (j = 0; j < NUM_THREADS; j++) {
+        result[i][j] = i * j;
+        printf ("Index [%d,%d] = %f \n", i, j, result[i][j]);
+    }
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for collapse(2)
+for (i = 0; i < NUM_THREADS; i++) {
+    for (j = 0; j < NUM_THREADS; j++) {
+        result[i][j] = i * j;
+        printf ("Index [%d,%d] = %f \n", i, j, result[i][j]);
+    }
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, j
+       - Shared variables: NUM_THREADS, result, printf
+```
+
+### tests/pass/collapseAndReduction.c:
+
+Analyzing for loop on line 12:
+```c
+for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++) {
+        sum = sum + i * j;
+    }
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum) collapse(2)
+for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++) {
+        sum = sum + i * j;
+    }
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, j
+       - Shared variables: sum
+```
+
+### tests/pass/collapseTwoLayersAndReduction.c:
+
+Analyzing for loop on line 12:
+```c
+for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++) {
+        for (int k = 0; k < 10; k++) {
+            sum += i * j * k;
+        }
+    }
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum) collapse(3)
+for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++) {
+        for (int k = 0; k < 10; k++) {
+            sum += i * j * k;
+        }
+    }
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, j, k
+       - Shared variables: sum
+```
+
+### tests/pass/innerLoopsTest.c:
+
+Analyzing for loop on line 12:
+```c
+for (int i = 0; i < 10; i++) {
+    @ omp - analysis = true
+    for (int j = 0; j < 10; j++) {
+        sum += var + 0 + var2;
+    }
+    @ omp - analysis = true
+    for (int j = 0; j < 10; j++) {
+        @ omp - analysis = true
+        for (int k = 0; k < 10; k++) {
+            sum += var + 1 + var2;
+        }
+    }
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum) collapse(3)
+for (int i = 0; i < 10; i++) {
+    @ omp - analysis = true
+    for (int j = 0; j < 10; j++) {
+        sum += var + 0 + var2;
+    }
+    @ omp - analysis = true
+    for (int j = 0; j < 10; j++) {
+        @ omp - analysis = true
+        for (int k = 0; k < 10; k++) {
+            sum += var + 1 + var2;
+        }
+    }
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, j, k
+       - Shared variables: sum, var, var2
+```
+Analyzing for loop on line 15:
+```c
+for (int j = 0; j < 10; j++) {
+    sum += var + 0 + var2;
+}
+```
+```
+[INFO] This loop is nested inside another for-loop. Consider this loop's parent loop before parallelizing.
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int j = 0; j < 10; j++) {
+    sum += var + 0 + var2;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: j
+       - Shared variables: sum, var, var2
+```
+Analyzing for loop on line 20:
+```c
+for (int j = 0; j < 10; j++) {
+    @ omp - analysis = true
+    for (int k = 0; k < 10; k++) {
+        sum += var + 1 + var2;
+    }
+}
+```
+```
+[INFO] This loop is nested inside another for-loop. Consider this loop's parent loop before parallelizing.
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum) collapse(2)
+for (int j = 0; j < 10; j++) {
+    @ omp - analysis = true
+    for (int k = 0; k < 10; k++) {
+        sum += var + 1 + var2;
+    }
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: j, k
+       - Shared variables: sum, var, var2
+```
+Analyzing for loop on line 23:
+```c
+for (int k = 0; k < 10; k++) {
+    sum += var + 1 + var2;
+}
+```
+```
+[INFO] This loop is nested inside another for-loop. Consider this loop's parent loop before parallelizing.
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int k = 0; k < 10; k++) {
+    sum += var + 1 + var2;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: k
+       - Shared variables: sum, var, var2
+```
+Analyzing for loop on line 30:
+```c
+for (int i = 0; i < 10; i++) {
+    @ omp - analysis = true
+    for (int j = 0; j < 10; j++) {
+        sum += var + 2 + var2;
+    }
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum) collapse(2)
+for (int i = 0; i < 10; i++) {
+    @ omp - analysis = true
+    for (int j = 0; j < 10; j++) {
+        sum += var + 2 + var2;
+    }
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, j
+       - Shared variables: sum, var, var2
+```
+Analyzing for loop on line 33:
+```c
+for (int j = 0; j < 10; j++) {
+    sum += var + 2 + var2;
+}
+```
+```
+[INFO] This loop is nested inside another for-loop. Consider this loop's parent loop before parallelizing.
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int j = 0; j < 10; j++) {
+    sum += var + 2 + var2;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: j
+       - Shared variables: sum, var, var2
+```
+
+### tests/pass/lect5example1s.c:
+
+Analyzing for loop on line 34:
+```c
+for (int i = thread_id; i < num_steps; i = i + t_count) {
+    x = (i + 0.5) * step;
+    sum[thread_id] = sum[thread_id] + 4 / (1.0 + x * x);
+    sum[thread_id];
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (int i = thread_id; i < num_steps; i = i + t_count) {
+    x = (i + 0.5) * step;
+    sum[thread_id] = sum[thread_id] + 4 / (1.0 + x * x);
+    sum[thread_id];
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: x, step, sum, thread_id
+```
+
+### tests/pass/memConflict.c:
+
+Analyzing for loop on line 12:
+```c
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    var2 = i + var;
+    sum += var + var2;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    var2 = i + var;
+    sum += var + var2;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: var, var2, sum
+```
+
+### tests/pass/memConflictComplex.c:
+
+Analyzing for loop on line 13:
+```c
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    var2 = 20;
+    var3 = var2 + var;
+    var2 = i + var;
+    sum += var + var3;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    var2 = 20;
+    var3 = var2 + var;
+    var2 = i + var;
+    sum += var + var3;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: var, var2, var3, sum
+```
+
+### tests/pass/memConflictWithMultipleAssignmentsPerLine.c:
+
+Analyzing for loop on line 12:
+```c
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    var2 = i + var;
+    sum += var + var2;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int i = 0; i < 10; i++) {
+    var = i * 10;
+    var2 = i + var;
+    sum += var + var2;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: var, var2, sum
+```
+
+### tests/pass/multipleReduction.c:
+
+Analyzing for loop on line 15:
+```c
+for (int i = 0; i < 10; i++) {
+    sum += i;
+    sum2 += i;
+    negative_sum -= i;
+    mult *= i;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum, sum2) reduction(-:negative_sum) reduction(*:mult)
+for (int i = 0; i < 10; i++) {
+    sum += i;
+    sum2 += i;
+    negative_sum -= i;
+    mult *= i;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: sum, sum2, negative_sum, mult
+```
+
+### tests/pass/multipleReduction2.c:
+
+Analyzing for loop on line 15:
+```c
+for (int i = 0; i < 10; i++) {
+    sum += i;
+    sum2 += i;
+    negative_sum -= i;
+    mult *= i;
+    mult *= i;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum, sum2) reduction(-:negative_sum) reduction(*:mult)
+for (int i = 0; i < 10; i++) {
+    sum += i;
+    sum2 += i;
+    negative_sum -= i;
+    mult *= i;
+    mult *= i;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: sum, sum2, negative_sum, mult
+```
+Analyzing for loop on line 25:
+```c
+for (int i = 0; i < 10; i++) {
+    sum = sum + i;
+    sum2 = sum2 + i;
+    negative_sum = negative_sum - i;
+    mult = mult * i;
+    mult = mult * i;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum, sum2) reduction(-:negative_sum)
+for (int i = 0; i < 10; i++) {
+    sum = sum + i;
+    sum2 = sum2 + i;
+    negative_sum = negative_sum - i;
+    mult = mult * i;
+    mult = mult * i;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: sum, sum2, negative_sum, mult
+```
+
+### tests/pass/pcat-prototype-collapse.c:
+
+Analyzing for loop on line 80:
+```c
+for (int i = 0; i < MAXCOUNT * max_num_threads * NUM_BLOCKS_TOTAL; i++) {
+    OBJS_IN_BLOCK[i] = -1;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (int i = 0; i < MAXCOUNT * max_num_threads * NUM_BLOCKS_TOTAL; i++) {
+    OBJS_IN_BLOCK[i] = -1;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: OBJS_IN_BLOCK
+```
+Analyzing for loop on line 101:
+```c
+for (i = 0; i < AVX_CACHE * MAX_STARS; i++) {
+    OBJS[i] = -1;
+}
+```
+```
+[INFO] This loop is nested inside another for-loop. Consider this loop's parent loop before parallelizing.
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (i = 0; i < AVX_CACHE * MAX_STARS; i++) {
+    OBJS[i] = -1;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: OBJS
+```
+Analyzing for loop on line 137:
+```c
+for (i = 0; i < max_num_threads * NUM_BLOCKS_TOTAL; i++) {
+    BLOCK_COUNT_THREAD[i] = 0;
+}
+```
+```
+[INFO] This loop is nested inside another for-loop. Consider this loop's parent loop before parallelizing.
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (i = 0; i < max_num_threads * NUM_BLOCKS_TOTAL; i++) {
+    BLOCK_COUNT_THREAD[i] = 0;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: BLOCK_COUNT_THREAD
+```
+
+### tests/pass/pi.c:
+
+Analyzing for loop on line 14:
+```c
+for (i = 0; i < num_steps; i++) {
+    x = (i + 0.5) * step;
+    sum = sum + 4.0 / (1.0 + x * x);
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (i = 0; i < num_steps; i++) {
+    x = (i + 0.5) * step;
+    sum = sum + 4.0 / (1.0 + x * x);
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: x, step, sum
+```
+
+### tests/pass/pragmaForTest.c:
+
+Analyzing for loop on line 20:
+```c
+for (int i = 0; i < num_steps; i += 1) {
+    printf ("thread:%d\n", omp_get_thread_num ());
+    double x = (i + 0.5) * step;
+    sum += 4.0 / (1.0 + x * x);
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (int i = 0; i < num_steps; i += 1) {
+    printf ("thread:%d\n", omp_get_thread_num ());
+    double x = (i + 0.5) * step;
+    sum += 4.0 / (1.0 + x * x);
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, x
+       - Shared variables: printf, omp_get_thread_num, step, sum
+```
+
+### tests/pass/sequence-alignment-GH.c:
+
+Analyzing for loop on line 74:
+```c
+for (int i = 0; i < strlen (seq2) + 1; i++) {
+    mutant = seq2;
+    if (i != 0) {
+        mutant = createMutant (mutant, i);
+    }
+    compare_Seqs_With_Offset (seqs_d, seq1, mutant, delta, i);
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (int i = 0; i < strlen (seq2) + 1; i++) {
+    mutant = seq2;
+    if (i != 0) {
+        mutant = createMutant (mutant, i);
+    }
+    compare_Seqs_With_Offset (seqs_d, seq1, mutant, delta, i);
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: mutant, seq2, createMutant, compare_Seqs_With_Offset, seqs_d, seq1, delta
+```
+Analyzing for loop on line 97:
+```c
+for (i = 0; i < strlen (seq) + 1; i++) {
+    if (i == index) {
+        strncat (mutant, &ch, 1);
+    }
+    strncat (mutant, &seq[i], 1);
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (i = 0; i < strlen (seq) + 1; i++) {
+    if (i == index) {
+        strncat (mutant, &ch, 1);
+    }
+    strncat (mutant, &seq[i], 1);
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: index, strncat, mutant, ch, seq
+```
+Analyzing for loop on line 120:
+```c
+for (j = 0; j < lenght; j++) {
+    if (seq1[i + j] == seq2[j]) {
+        strncat (seq3, &stars, 1);
+    }
+    else {
+        if (isColons (seq1[i + j], seq2[j])) {
+            strncat (seq3, &colons, 1);
+        }
+        else if (isPoint (seq1[i + j], seq2[j])) {
+            strncat (seq3, &points, 1);
+        }
+        else {
+            strncat (seq3, &space, 1);
+        }
+    }
+}
+```
+```
+[INFO] This loop is nested inside another for-loop. Consider this loop's parent loop before parallelizing.
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (j = 0; j < lenght; j++) {
+    if (seq1[i + j] == seq2[j]) {
+        strncat (seq3, &stars, 1);
+    }
+    else {
+        if (isColons (seq1[i + j], seq2[j])) {
+            strncat (seq3, &colons, 1);
+        }
+        else if (isPoint (seq1[i + j], seq2[j])) {
+            strncat (seq3, &points, 1);
+        }
+        else {
+            strncat (seq3, &space, 1);
+        }
+    }
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: j
+       - Shared variables: seq1, i, seq2, strncat, seq3, stars, isColons, colons, isPoint, points, space
+```
+Analyzing for loop on line 185:
+```c
+for (int i = 0; i < size; i++) {
+    if (seq3[i] == stars) {
+        numOfStars++;
+    }
+    else if (seq3[i] == colons) {
+        numOfColons++;
+    }
+    else if (seq3[i] == points) {
+        numOfPoints++;
+    }
+    else {
+        numOfSpaces++;
+    }
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for
+for (int i = 0; i < size; i++) {
+    if (seq3[i] == stars) {
+        numOfStars++;
+    }
+    else if (seq3[i] == colons) {
+        numOfColons++;
+    }
+    else if (seq3[i] == points) {
+        numOfPoints++;
+    }
+    else {
+        numOfSpaces++;
+    }
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: seq3, stars, numOfStars, colons, numOfColons, points, numOfPoints, numOfSpaces
+```
+
+### tests/pass/singleLineLoopBody.c:
+
+Analyzing for loop on line 12:
+```c
+for (int i = 0; i < 10; i++)
+    for (int j = 0; j < 10; j++)
+        sum = sum + i * j;
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for collapse(2)
+for (int i = 0; i < 10; i++)
+    for (int j = 0; j < 10; j++)
+        sum = sum + i * j;
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, j
+       - Shared variables: sum
+```
+Analyzing for loop on line 17:
+```c
+for (int i = 0; i < 10; i++)
+    for (int j = 0; j < 10; j++) {
+        sum = sum + i * j;
+    }
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum) collapse(2)
+for (int i = 0; i < 10; i++)
+    for (int j = 0; j < 10; j++) {
+        sum = sum + i * j;
+    }
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, j
+       - Shared variables: sum
+```
+Analyzing for loop on line 23:
+```c
+for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++)
+        sum = sum + i * j;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for collapse(2)
+for (int i = 0; i < 10; i++) {
+    for (int j = 0; j < 10; j++)
+        sum = sum + i * j;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, j
+       - Shared variables: sum
+```
+
+### tests/pass/sum.c:
+
+Analyzing for loop on line 14:
+```c
+for (int i = 0; i < sizeof (a) / sizeof (int); i++) {
+    sum += a[i];
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:sum)
+for (int i = 0; i < sizeof (a) / sizeof (int); i++) {
+    sum += a[i];
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i
+       - Shared variables: sum, a
+```
+
+### tests/pass/variableVisibilityTest.c:
+
+Analyzing for loop on line 13:
+```c
+for (i = 0; i < 10; i++) {
+    x += i;
+    y = x + i;
+    z = y + i;
+    int a = x + i + x;
+    int b = a + i;
+    int c = b + i;
+}
+```
+```
+[INFO] No parallelization problems found with this loop.
+[SUGGESTION] Use these parameters:
+#pragma omp parallel for reduction(+:x)
+for (i = 0; i < 10; i++) {
+    x += i;
+    y = x + i;
+    z = y + i;
+    int a = x + i + x;
+    int b = a + i;
+    int c = b + i;
+}
+[INFO] Default OpenMP variable visibilities:
+       - Private variables: i, a, b, c
+       - Shared variables: x, y, z
+```
+
+
+### Fail tests:
+
+0. arrayConflict.c                                Pass
+1. fibonacci-GH.c                                 Pass
+2. jump-statement.c                               Pass
+3. memConflict.c                                  Pass
+4. memConflictComplex.c                           Pass
+5. memConflictWithMultipleAssignmentsPerLine.c    Pass
+6. test-f.c                                       Pass
+7. twolist.c                                      Pass
+
+### Pass tests:
+
+0. arrayConflict.c                                Pass
+1. circularReference.c                            Pass
+2. collapse-fail.c                                Pass
+3. collapse.c                                     Pass
+4. collapseAndReduction.c                         Pass
+5. collapseTwoLayersAndReduction.c                Pass
+6. innerLoopsTest.c                               Pass
+7. lect5example1s.c                               Pass
+8. memConflict.c                                  Pass
+9. memConflictComplex.c                           Pass
+10. memConflictWithMultipleAssignmentsPerLine.c   Pass
+11. multipleReduction.c                           Pass
+12. multipleReduction2.c                          Pass
+13. pcat-prototype-collapse.c                     Pass
+14. pi.c                                          Pass
+15. pragmaForTest.c                               Pass
+16. sequence-alignment-GH.c                       Pass
+17. singleLineLoopBody.c                          Pass
+18. sum.c                                         Pass
+19. variableVisibilityTest.c                      Pass
