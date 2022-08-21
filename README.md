@@ -1,5 +1,7 @@
 # openmp-analysis
 
+See the web front-end at https://omp-loop-helper.herokuapp.com/
+
 This program performs 5 steps to analyze each marked for loop for OpenMP parallelization compatibility:
  1. match for loop
  2. check that loop is pragma-compatible (structured block)
